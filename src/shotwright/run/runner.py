@@ -11,6 +11,7 @@ from typing import Any
 
 from ..media import file_sha256, load_image, save_image, write_video
 from ..plan import InitKind, Job, Plan
+from ..policy import check as check_policy
 from ..profiles import ModelProfile, Registry, VramPreset, default_registry
 from .backend import Backend, JobInputs, OutOfMemory, TransientError
 from .rundir import RunDir, job_cache_key
@@ -178,6 +179,7 @@ class Runner:
             try:
                 inputs, input_hash = self._inputs(run, job)
                 job = self._adapt_prompt(run, job, inputs, input_hash)
+                check_policy(job.prompt, where=f"{job.id} prompt")
                 key = job_cache_key(job, input_hash)
                 if self._is_done(run, job, key):
                     result.cached.append(job.id)

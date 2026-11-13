@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
+from ..policy import violation
 from ..profiles import Conditioning, Continuity, Registry, UnknownModelError, default_registry
 from ..snap import snap
 from .model import InitKind, Job, JobInit, Plan
@@ -44,6 +45,9 @@ def compile_plan(
         if shot.id in seen:
             problems.append(f"shot id {shot.id!r} is used more than once")
         seen.add(shot.id)
+        reason = violation(shot.prompt, spec.style)
+        if reason:
+            problems.append(f"shot {shot.id!r} is not allowed: {reason}")
     if spec.shots[0].transition == Transition.CONTINUOUS:
         problems.append(f"first shot {spec.shots[0].id!r} cannot be continuous")
 
