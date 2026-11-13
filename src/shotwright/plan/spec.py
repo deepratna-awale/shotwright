@@ -48,6 +48,7 @@ class ShotSpec(BaseModel):
     seed: int | None = None
     negative: str | None = None
     init_image: str | None = None
+    end_image: str | None = None
     params: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")

@@ -120,7 +120,7 @@ def fill(graph: Any, values: dict[str, Any]) -> Any:
 class ComfyUIBackend:
     """Runs jobs by queueing API-format workflows on a ComfyUI server.
 
-    Workflows are looked up as `<profile id>.<t2v|i2v>.json`, falling back to the
+    Workflows are looked up as `<profile id>.<t2v|i2v|flf2v>.json`, falling back to the
     profile's base, in user directories first and then the bundled set. A
     `<profile id>+<recipe>.<mode>.json` file takes precedence for that VRAM recipe.
     """
@@ -172,7 +172,7 @@ class ComfyUIBackend:
         return None
 
     def supports(self, profile: ModelProfile) -> bool:
-        return any(self._find(profile, mode) is not None for mode in ("t2v", "i2v"))
+        return any(self._find(profile, mode) is not None for mode in ("t2v", "i2v", "flf2v"))
 
     def prepare(self, profile: ModelProfile, preset: VramPreset | None) -> None:
         self._profile = profile
@@ -258,7 +258,12 @@ class ComfyUIBackend:
         profile = self._profile
         if profile is None:
             raise BackendError("prepare() must be called before run()")
-        mode = "i2v" if inputs.init_image is not None else "t2v"
+        if inputs.end_image is not None:
+            mode = "flf2v"
+        elif inputs.init_image is not None:
+            mode = "i2v"
+        else:
+            mode = "t2v"
         template = self._find(profile, mode)
         if template is None:
             raise BackendError(f"no ComfyUI {mode} workflow for {profile.id}")
@@ -276,6 +281,8 @@ class ComfyUIBackend:
         values.update(job.params)
         if inputs.init_image is not None:
             values["image"] = self._upload(job, inputs.init_image)
+        if inputs.end_image is not None:
+            values["end_image"] = self._upload(job, inputs.end_image)
         graph = fill(copy.deepcopy(template), values)
 
         queued = self.transport.post_json("/prompt", {"prompt": graph, "client_id": self.client_id})

@@ -25,6 +25,17 @@ shotwright rerun runs/harbour-dawn-20261113T120000 deck --seed 7
 shotwright stitch runs/harbour-dawn-20261113T120000 --fps 24
 ```
 
+### Keyframes
+
+On first-last-frame models, a shot can be given an `end_image`, and the clip is steered to land on it. A continuous shot that follows starts from that frame. Keyframes stop drift from building up across long chains, so the last-frame hop limit resets after each one:
+
+```yaml
+defaults: {model: wan2.1-flf2v-14b-720p}
+shots:
+  - {id: arrive, prompt: "...", duration: 5, init_image: keys/dock.png, end_image: keys/deck.png}
+  - {id: board, prompt: "...", duration: 5, transition: continuous, end_image: keys/cabin.png}
+```
+
 The stitcher drops the duplicated frame at each chained seam, resizes and crops to the output size, converts frame rates, and corrects colour drift across chains. `--color seam` matches each clip to the one before it. `--color anchor` also pulls long chains back toward the look of their first shot.
 
 ## Snap a request to legal values

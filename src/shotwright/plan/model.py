@@ -36,6 +36,7 @@ class Job(BaseModel):
     height: int
     fps: float
     init: JobInit | None = None
+    end_image: str | None = None
     params: dict[str, Any] = Field(default_factory=dict)
     resize_to: tuple[int, int] | None = None
     crop: tuple[int, int, int, int] | None = None

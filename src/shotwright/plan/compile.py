@@ -113,6 +113,22 @@ def compile_plan(
                 f"shot {shot.id!r} starts from nothing but {profile.id} needs an init_image"
             )
 
+        end_image = None
+        if shot.end_image:
+            if not profile.supports(Conditioning.FLF2V):
+                problems.append(
+                    f"shot {shot.id!r} has an end_image but {profile.id} cannot end on a "
+                    f"given frame; use a first-last-frame model such as wan2.1-flf2v-14b-720p"
+                )
+            elif not (continuous or init_image or result.is_split):
+                problems.append(
+                    f"shot {shot.id!r} has an end_image but nothing to start from; "
+                    f"add an init_image or make it continuous"
+                )
+            end_image = spec.resolve_path(shot.end_image)
+            if check_files and not Path(end_image).is_file():
+                problems.append(f"shot {shot.id!r}: end_image not found: {end_image}")
+
         resize = result.postprocess.resize_to
         crop = result.postprocess.crop
         count = len(result.segments)
@@ -156,12 +172,15 @@ def compile_plan(
                     height=result.height,
                     fps=native,
                     init=init,
+                    end_image=end_image if index == count - 1 else None,
                     params={**spec.defaults.params, **shot.params},
                     resize_to=(resize.width, resize.height) if resize else None,
                     crop=(crop.left, crop.top, crop.right, crop.bottom) if crop else None,
                 )
             )
         previous_job = jobs[-1]
+        if end_image:
+            hops = 0
 
     if problems:
         raise PlanError(problems)

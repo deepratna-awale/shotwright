@@ -61,10 +61,15 @@ class FakeBackend:
         else:
             start = np.clip(target * 0.5 + texture, 0, 255)
 
+        end = (
+            inputs.end_image.astype(np.float32)
+            if inputs.end_image is not None
+            else np.clip(target + texture, 0, 255)
+        )
         frames = np.empty((job.frames, h, w, 3), dtype=np.uint8)
         for i in range(job.frames):
             t = i / max(job.frames - 1, 1)
-            frames[i] = np.clip(start * (1 - t) + (target + texture) * t, 0, 255).astype(np.uint8)
+            frames[i] = np.clip(start * (1 - t) + end * t, 0, 255).astype(np.uint8)
         return ClipResult(frames=frames, fps=job.fps, meta={"backend": self.name})
 
     def release(self) -> None:

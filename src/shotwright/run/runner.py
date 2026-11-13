@@ -105,16 +105,28 @@ class Runner:
         return presets[index + 1]
 
     def _inputs(self, run: RunDir, job: Job) -> tuple[JobInputs, str | None]:
-        if job.init is None:
-            return JobInputs(), None
-        if job.init.kind == InitKind.IMAGE:
-            path = Path(job.init.path)
-        else:
-            path = run.last_frame_path(job.init.job)
-        if not path.is_file():
-            raise RunError(f"{job.id}: init image missing at {path}")
-        image = load_image(path, job.width, job.height)
-        return JobInputs(init_image=image, init_image_path=path), file_sha256(path)
+        inputs = JobInputs()
+        hashes = []
+        if job.init is not None:
+            if job.init.kind == InitKind.IMAGE:
+                path = Path(job.init.path)
+            else:
+                path = run.last_frame_path(job.init.job)
+            if not path.is_file():
+                raise RunError(f"{job.id}: init image missing at {path}")
+            inputs.init_image = load_image(path, job.width, job.height)
+            inputs.init_image_path = path
+            hashes.append(file_sha256(path))
+        if job.end_image is not None:
+            path = Path(job.end_image)
+            if not path.is_file():
+                raise RunError(f"{job.id}: end image missing at {path}")
+            inputs.end_image = load_image(path, job.width, job.height)
+            inputs.end_image_path = path
+            hashes.append("end:" + file_sha256(path))
+        if not hashes:
+            return inputs, None
+        return inputs, hashes[0] if len(hashes) == 1 else "+".join(hashes)
 
     def _is_done(self, run: RunDir, job: Job, key: str) -> bool:
         meta = run.read_meta(job.id)
