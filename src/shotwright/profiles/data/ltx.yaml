@@ -1,0 +1,48 @@
+profiles:
+  - id: ltx-2
+    family: ltx
+    variant: "2 19B"
+    params: 19B
+    temporal_factor: 8
+    spatial_multiple: 32
+    native_fps: 24
+    frames: {min: 9, default: 121, max: 257}
+    resolution_buckets: []
+    pixel_budget: 2088960
+    conditioning: [t2v, i2v, v2v, audio]
+    continuity: [native_extension, last_frame_i2v]
+    audio: ambient
+    min_vram_gb: 24
+    vram_presets:
+      - {min_gb: 80, recipe: full}
+      - {min_gb: 40, recipe: fp8}
+      - {min_gb: 24, recipe: fp8+offload+vae_tiling}
+    backends:
+      diffusers: LTX2Pipeline
+      diffusers_repo: Lightricks/LTX-2
+      comfyui: ComfyUI-LTXVideo
+    license: ltx-2-community
+    sources: [https://huggingface.co/Lightricks/LTX-2]
+    notes: Frame count must be 8n+1 and sides divisible by 32; generates joint audio.
+
+  - id: ltx-2.3
+    base: ltx-2
+    variant: "2.3 22B"
+    params: 22B
+    frames: {min: 9, default: 121, max: 481}
+    backends:
+      diffusers_repo: Lightricks/LTX-2.3
+      comfyui: ComfyUI-LTXVideo
+    sources: [https://huggingface.co/Lightricks/LTX-2.3]
+
+  - id: ltx-2.5
+    base: ltx-2.3
+    variant: "2.5"
+    conditioning: [t2v, i2v, v2v, audio, multishot]
+    backends:
+      diffusers_repo: Lightricks/LTX-2.5-Diffusers
+      comfyui: ComfyUI-LTXVideo
+    sources:
+      - https://ltx.io/newsroom/introducing-ltx-2-5
+      - https://huggingface.co/Lightricks/LTX-2.5-Diffusers
+    notes: Native multi-shot and automatic duration; frame and size rules assumed same as 2.3 until confirmed.
