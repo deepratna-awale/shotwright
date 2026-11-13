@@ -1,0 +1,1 @@
+HunyuanVideo responds best to one paragraph of 60 to 120 words in the present tense: subject, appearance, action, setting, lighting, then shot type and camera movement. Be literal and visual. Avoid lists and on-screen text.

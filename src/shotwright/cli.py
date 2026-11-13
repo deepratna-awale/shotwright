@@ -130,6 +130,57 @@ def plan(shot_list, as_json, output):
     click.echo(compiled.to_json() if as_json else compiled.summary())
 
 
+def _llm_options(f):
+    f = click.option("--llm-model", help="Chat model. Defaults to $SHOTWRIGHT_LLM_MODEL.")(f)
+    f = click.option(
+        "--llm-url", help="OpenAI-compatible base URL. Defaults to $SHOTWRIGHT_LLM_BASE_URL."
+    )(f)
+    return f
+
+
+@main.command()
+@click.argument("shot_list", type=click.Path(exists=True, dir_okay=False))
+@click.option(
+    "-o", "--output", type=click.Path(dir_okay=False), help="Defaults to <name>.enhanced.yaml."
+)
+@click.option(
+    "--bible", "bible_path", type=click.Path(dir_okay=False), help="Use or write this story bible."
+)
+@click.option("--no-bible", is_flag=True, help="Skip the story bible.")
+@_llm_options
+def enhance(shot_list, output, bible_path, no_bible, llm_model, llm_url):
+    """Expand each shot's brief into a full prompt for its model with an LLM.
+
+    A story bible of characters, locations and style is written first so every shot
+    describes them the same way. Uses any OpenAI-compatible API; set
+    SHOTWRIGHT_LLM_API_KEY or OPENAI_API_KEY.
+    """
+    from pathlib import Path
+
+    from .llm import LLMClient, LLMError, StoryBible, build_bible, write_prompts
+
+    source = Path(shot_list)
+    out = Path(output) if output else source.with_name(f"{source.stem}.enhanced.yaml")
+    spec = ShotList.from_yaml(source)
+    client = LLMClient(model=llm_model, base_url=llm_url)
+    try:
+        bible = None
+        if not no_bible:
+            path = Path(bible_path) if bible_path else source.with_name(f"{source.stem}.bible.yaml")
+            if bible_path and path.is_file():
+                bible = StoryBible.load(path)
+                click.echo(f"bible     {path} (existing)")
+            else:
+                bible = build_bible(spec, client)
+                bible.save(path)
+                click.echo(f"bible     {path}")
+        enhanced = write_prompts(spec, client, bible)
+    except LLMError as exc:
+        raise click.ClickException(str(exc)) from exc
+    enhanced.to_yaml(out)
+    click.echo(f"wrote     {out} ({len(enhanced.shots)} shots, {client.calls} LLM calls)")
+
+
 BACKENDS = ["fake", "diffusers", "comfyui"]
 
 

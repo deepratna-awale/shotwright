@@ -1,0 +1,1 @@
+Wan responds best to one detailed paragraph of 80 to 150 words in the present tense. Order: subject and appearance, the action as it unfolds, the setting, lighting and atmosphere, then camera framing and movement (for example "slow dolly in", "static wide shot", "handheld tracking shot"). End with a short style phrase. Avoid lists, quotation marks and on-screen text.

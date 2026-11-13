@@ -69,6 +69,19 @@ for adjustment in job.adjustments:
     print(adjustment)
 ```
 
+## Write prompts with an LLM
+
+Shot lists can be written as short briefs. `enhance` first writes a story bible that fixes how each character, location and prop looks. It then expands every brief into a full prompt in the style the shot's model responds to best, restating the bible each time so shots stay consistent:
+
+```bash
+export SHOTWRIGHT_LLM_API_KEY=...            # any OpenAI-compatible API
+export SHOTWRIGHT_LLM_MODEL=...              # the chat model to use
+export SHOTWRIGHT_LLM_BASE_URL=...           # optional, for other providers or a local server
+shotwright enhance shots.yaml                # writes shots.bible.yaml and shots.enhanced.yaml
+```
+
+Each shot keeps its original text as `brief`, so editing the bible and running `enhance --bible shots.bible.yaml` again starts from the briefs. Replies are cached in `.shotwright-cache/`, so repeated runs don't re-bill identical calls.
+
 ## Render through ComfyUI
 
 Point shotwright at a running ComfyUI server and it queues one workflow per job, uploading the init frame for chained shots:
