@@ -10,7 +10,7 @@ from .plan import PlanError, ShotList, compile_plan
 from .profiles import Conditioning, UnknownModelError, list_models
 from .run import DiffusersBackend, FakeBackend, Runner, RunResult
 from .snap import snap as snap_request
-from .stitch import METHODS, StitchError
+from .stitch import COLOR_MODES, METHODS, StitchError
 from .stitch import stitch as stitch_run
 
 CONDITIONING_CHOICES = [c.value for c in Conditioning]
@@ -225,10 +225,32 @@ def rerun(run_dir, job_id, seed, backend, vram):
     help="How to convert from each model's native fps.",
 )
 @click.option("--crf", type=int, default=16, show_default=True, help="x264 quality.")
-def stitch(run_dir, output, fps, method, crf):
+@click.option(
+    "--color",
+    type=click.Choice(COLOR_MODES),
+    default="seam",
+    show_default=True,
+    help="Colour drift correction across chained clips.",
+)
+@click.option(
+    "--anchor-strength",
+    type=click.FloatRange(0, 1),
+    default=0.5,
+    show_default=True,
+    help="How far --color anchor pulls each clip back toward the start of its chain.",
+)
+def stitch(run_dir, output, fps, method, crf, color, anchor_strength):
     """Join the rendered clips in RUN_DIR into one video."""
     try:
-        result = stitch_run(run_dir, out=output, fps=fps, method=method, crf=crf)
+        result = stitch_run(
+            run_dir,
+            out=output,
+            fps=fps,
+            method=method,
+            crf=crf,
+            color=color,
+            anchor_strength=anchor_strength,
+        )
     except StitchError as exc:
         raise click.ClickException(str(exc)) from exc
     click.echo(f"wrote     {result.path}")
