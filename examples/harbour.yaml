@@ -5,6 +5,7 @@ defaults:
   seed: 1234
   negative: "blurry, distorted hands, warped faces, text, watermark"
 style: "35mm film, soft morning light, gentle grain"
+voices: {fisherman: onyx, default: nova}
 shots:
   - id: wide
     prompt: "Fishing boats rest in a misty harbour at dawn, gulls circling overhead"
@@ -20,6 +21,9 @@ shots:
     prompt: "The old fisherman looks out to sea and smiles"
     duration: 5
     transition: continuous
+    lines:
+      - {speaker: fisherman, text: "Weather's turning."}
+      - {speaker: fisherman, text: "We go anyway.", at: 2.5}
   - id: departure
     prompt: "Wide shot, the boat leaves the harbour as the sun breaks through the mist"
     duration: 10
