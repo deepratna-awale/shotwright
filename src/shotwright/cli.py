@@ -9,7 +9,7 @@ from . import __version__
 from .plan import PlanError, ShotList, compile_plan
 from .profiles import Conditioning, UnknownModelError, list_models
 from .review import ReviewError, contact_sheet
-from .run import DiffusersBackend, FakeBackend, Runner, RunResult
+from .run import ComfyUIBackend, DiffusersBackend, FakeBackend, Runner, RunResult
 from .snap import snap as snap_request
 from .stitch import COLOR_MODES, METHODS, StitchError
 from .stitch import stitch as stitch_run
@@ -130,14 +130,22 @@ def plan(shot_list, as_json, output):
     click.echo(compiled.to_json() if as_json else compiled.summary())
 
 
-BACKENDS = ["fake", "diffusers"]
+BACKENDS = ["fake", "diffusers", "comfyui"]
 
 
-def _backend(name: str, device: str = "cuda", dtype: str = "bfloat16"):
+def _backend(
+    name: str,
+    device: str = "cuda",
+    dtype: str = "bfloat16",
+    comfy_url: str = "http://127.0.0.1:8188",
+    workflows: tuple[str, ...] = (),
+):
     if name == "fake":
         return FakeBackend()
     if name == "diffusers":
         return DiffusersBackend(device=device, dtype=dtype)
+    if name == "comfyui":
+        return ComfyUIBackend(url=comfy_url, workflow_dirs=workflows)
     raise click.ClickException(f"unknown backend {name!r}")
 
 
@@ -157,9 +165,18 @@ def _report(result: RunResult) -> None:
 
 def _runner_options(f):
     @functools.wraps(f)
-    def wrapper(*args, backend, device, dtype, **kwargs):
-        return f(*args, backend=_backend(backend, device, dtype), **kwargs)
+    def wrapper(*args, backend, device, dtype, comfy_url, workflows, **kwargs):
+        return f(*args, backend=_backend(backend, device, dtype, comfy_url, workflows), **kwargs)
 
+    wrapper = click.option(
+        "--workflows",
+        multiple=True,
+        type=click.Path(exists=True, file_okay=False),
+        help="Extra directory of ComfyUI API workflows. Repeatable.",
+    )(wrapper)
+    wrapper = click.option(
+        "--comfy-url", default="http://127.0.0.1:8188", show_default=True, help="ComfyUI server."
+    )(wrapper)
     wrapper = click.option("--dtype", default="bfloat16", show_default=True)(wrapper)
     wrapper = click.option("--device", default="cuda", show_default=True)(wrapper)
     wrapper = click.option(
