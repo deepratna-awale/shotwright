@@ -48,6 +48,14 @@ class Job(BaseModel):
         return None
 
 
+class PlannedLine(BaseModel):
+    shot_id: str
+    text: str
+    speaker: str | None = None
+    voice: str | None = None
+    at: float = 0.0
+
+
 class Plan(BaseModel):
     version: int = 1
     project: str
@@ -55,6 +63,7 @@ class Plan(BaseModel):
     output_height: int
     output_fps: float
     jobs: list[Job]
+    lines: list[PlannedLine] = Field(default_factory=list)
 
     def job(self, job_id: str) -> Job:
         for job in self.jobs:

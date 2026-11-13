@@ -6,7 +6,7 @@ from pathlib import Path
 from ..policy import violation
 from ..profiles import Conditioning, Continuity, Registry, UnknownModelError, default_registry
 from ..snap import snap
-from .model import InitKind, Job, JobInit, Plan
+from .model import InitKind, Job, JobInit, Plan, PlannedLine
 from .spec import ShotList, Transition
 
 SEED_MAX = 2**31 - 1
@@ -186,9 +186,23 @@ def compile_plan(
         if end_image:
             hops = 0
 
+    lines = []
+    for shot in spec.shots:
+        for line in shot.lines:
+            reason = violation(line.text)
+            if reason:
+                problems.append(f"a line in shot {shot.id!r} is not allowed: {reason}")
+            voice = spec.voices.get(line.speaker or "", spec.voices.get("default"))
+            lines.append(
+                PlannedLine(
+                    shot_id=shot.id, text=line.text, speaker=line.speaker, voice=voice, at=line.at
+                )
+            )
+
     if problems:
         raise PlanError(problems)
     return Plan(
+        lines=lines,
         project=spec.project,
         output_width=out.width,
         output_height=out.height,
