@@ -80,6 +80,8 @@ class VramPreset(BaseModel):
 class Backends(BaseModel):
     diffusers: str | None = None
     diffusers_repo: str | None = None
+    diffusers_i2v: str | None = None
+    diffusers_repo_i2v: str | None = None
     comfyui: str | None = None
     hosted: str | None = None
 
