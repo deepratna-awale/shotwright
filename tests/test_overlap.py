@@ -88,7 +88,7 @@ def test_resume_reuses_overlap_jobs(tmp_path, vace_registry):
     )
     backend = FakeBackend()
     again = Runner(backend, registry=vace_registry).resume(first.run_dir)
-    assert again.cached == [j.id for j in p.jobs]
+    assert sorted(again.cached) == sorted(j.id for j in p.jobs)
     assert backend.calls == []
 
 

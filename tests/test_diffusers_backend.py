@@ -1,3 +1,4 @@
+import sys
 from types import SimpleNamespace
 
 import numpy as np
@@ -371,3 +372,48 @@ def test_cli_lists_diffusers_backend():
     assert out.exit_code == 0
     assert "diffusers" in out.output
     assert "--device" in out.output
+
+
+def test_i2v_from_base_pipe_keeps_dtype(stub_registry, monkeypatch):
+    shared = {}
+
+    class Base(StubPipeline):
+        @classmethod
+        def from_pretrained(cls, repo, torch_dtype):
+            return cls(repo, torch_dtype)
+
+    class FromPipe(StubImageToVideoPipeline):
+        @classmethod
+        def from_pipe(cls, base, **kwargs):
+            shared["kwargs"] = kwargs
+            return cls(base.repo, kwargs.get("torch_dtype"))
+
+    fake = SimpleNamespace(__version__="0", StubPipeline=Base, StubImageToVideoPipeline=FromPipe)
+    monkeypatch.setitem(sys.modules, "diffusers", fake)
+    plan = plan_for(stub_registry, [{"id": "a", "prompt": "p", "duration": 1}])
+    job = plan.jobs[0]
+    b = DiffusersBackend(torch_module=fake_torch())
+    b.prepare(stub_registry.get("tiny-i2v"), None)
+    b.run(job, JobInputs(init_image=np.zeros((job.height, job.width, 3), dtype=np.uint8)))
+
+    assert shared["kwargs"] == {"torch_dtype": "bf16"}
+
+
+def test_separately_loaded_pipelines_are_not_kept_together(stub_registry):
+    plan = plan_for(stub_registry, [{"id": "a", "prompt": "p", "duration": 1}])
+    job = plan.jobs[0]
+    loader = Loader()
+    b = backend(loader)
+    b.prepare(stub_registry.get("tiny-i2v"), None)
+    image = np.zeros((job.height, job.width, 3), dtype=np.uint8)
+    b.run(job, JobInputs())
+    b.run(job, JobInputs(init_image=image))
+    assert list(b._pipes) == ["i2v"]
+    b.run(job, JobInputs())
+
+    assert [type(p).__name__ for p in loader.loaded] == [
+        "StubPipeline",
+        "StubImageToVideoPipeline",
+        "StubPipeline",
+    ]
+    assert list(b._pipes) == ["base"]

@@ -12,7 +12,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     VIRTUAL_ENV=/opt/venv \
     PATH=/opt/venv/bin:$PATH \
     HF_HOME=/workspace/hf \
-    HF_HUB_ENABLE_HF_TRANSFER=1 \
+    HF_XET_HIGH_PERFORMANCE=1 \
     SHOTWRIGHT_RUNS_DIR=/workspace/runs
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -20,8 +20,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=ghcr.io/astral-sh/uv:0.5.11 /uv /usr/local/bin/uv
 RUN uv venv --python ${PYTHON_VERSION} ${VIRTUAL_ENV} \
-    && uv pip install --index-url ${TORCH_INDEX} torch torchvision \
-    && uv pip install hf_transfer
+    && uv pip install --index-url ${TORCH_INDEX} torch torchvision
 
 WORKDIR /opt/shotwright
 COPY pyproject.toml README.md LICENSE ./

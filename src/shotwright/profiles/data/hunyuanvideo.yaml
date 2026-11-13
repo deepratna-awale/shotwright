@@ -13,13 +13,13 @@ profiles:
     continuity: [last_frame_i2v]
     min_vram_gb: 14
     vram_presets:
-      - {min_gb: 24, recipe: full}
-      - {min_gb: 14, recipe: offload}
+      - {min_gb: 24, recipe: full+vae_tiling}
+      - {min_gb: 14, recipe: offload+vae_tiling}
     backends:
       diffusers: HunyuanVideo15Pipeline
-      diffusers_repo: hunyuanvideo-community/HunyuanVideo-1.5-480p_t2v
+      diffusers_repo: hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-480p_t2v
       diffusers_i2v: HunyuanVideo15ImageToVideoPipeline
-      diffusers_repo_i2v: hunyuanvideo-community/HunyuanVideo-1.5-480p_i2v
+      diffusers_repo_i2v: hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-480p_i2v
       comfyui: native
     license: tencent-hunyuan-community
     sources: [https://github.com/Tencent-Hunyuan/HunyuanVideo-1.5]
@@ -31,5 +31,5 @@ profiles:
     resolution_buckets: [1280x720, 720x1280]
     pixel_budget: 921600
     backends:
-      diffusers_repo: hunyuanvideo-community/HunyuanVideo-1.5-720p_t2v
-      diffusers_repo_i2v: hunyuanvideo-community/HunyuanVideo-1.5-720p_i2v
+      diffusers_repo: hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-720p_t2v
+      diffusers_repo_i2v: hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-720p_i2v
