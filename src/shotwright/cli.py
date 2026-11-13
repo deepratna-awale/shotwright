@@ -7,6 +7,7 @@ import click
 from . import __version__
 from .plan import PlanError, ShotList, compile_plan
 from .profiles import Conditioning, UnknownModelError, list_models
+from .run import FakeBackend, Runner, RunResult
 from .snap import snap as snap_request
 
 CONDITIONING_CHOICES = [c.value for c in Conditioning]
@@ -123,6 +124,79 @@ def plan(shot_list, as_json, output):
     if output:
         compiled.save(output)
     click.echo(compiled.to_json() if as_json else compiled.summary())
+
+
+BACKENDS = ["fake"]
+
+
+def _backend(name: str):
+    if name == "fake":
+        return FakeBackend()
+    raise click.ClickException(f"unknown backend {name!r}")
+
+
+def _report(result: RunResult) -> None:
+    click.echo(f"run       {result.run_dir}")
+    click.echo(
+        f"jobs      {len(result.done)} rendered, {len(result.cached)} reused, "
+        f"{len(result.failed)} failed, {len(result.skipped)} skipped"
+    )
+    for job_id, error in result.failed.items():
+        click.echo(f"  failed  {job_id}: {error}")
+    for job_id in result.skipped:
+        click.echo(f"  skipped {job_id}")
+    if not result.ok:
+        raise SystemExit(1)
+
+
+def _runner_options(f):
+    f = click.option("--backend", type=click.Choice(BACKENDS), default="fake", show_default=True)(f)
+    f = click.option("--vram", type=float, help="GPU memory in GB, used to pick presets.")(f)
+    return f
+
+
+@main.command()
+@click.argument("shot_list", type=click.Path(exists=True, dir_okay=False))
+@_runner_options
+@click.option("--runs-dir", default="runs", show_default=True, type=click.Path(file_okay=False))
+@click.option("--name", help="Run directory name. Defaults to project name plus a timestamp.")
+def run(shot_list, backend, vram, runs_dir, name):
+    """Compile SHOT_LIST and render every job into a run directory."""
+    try:
+        compiled = compile_plan(ShotList.from_yaml(shot_list))
+    except PlanError as exc:
+        raise click.ClickException(f"the shot list has problems:\n{exc}") from exc
+    runner = Runner(_backend(backend), runs_root=runs_dir, vram_gb=vram)
+    runner.on(
+        "job_done", lambda e: click.echo(f"  done    {e.job_id} ({e.detail['seconds']:.1f} s)")
+    )
+    _report(runner.start(compiled, name=name))
+
+
+@main.command()
+@click.argument("run_dir", type=click.Path(exists=True, file_okay=False))
+@_runner_options
+def resume(run_dir, backend, vram):
+    """Continue RUN_DIR, rendering only jobs that are missing or out of date."""
+    runner = Runner(_backend(backend), vram_gb=vram)
+    runner.on(
+        "job_done", lambda e: click.echo(f"  done    {e.job_id} ({e.detail['seconds']:.1f} s)")
+    )
+    _report(runner.resume(run_dir))
+
+
+@main.command()
+@click.argument("run_dir", type=click.Path(exists=True, file_okay=False))
+@click.argument("job_id")
+@click.option("--seed", type=int, help="New seed. Defaults to the current seed plus one.")
+@_runner_options
+def rerun(run_dir, job_id, seed, backend, vram):
+    """Re-render JOB_ID in RUN_DIR with a new seed, plus every job chained from it."""
+    runner = Runner(_backend(backend), vram_gb=vram)
+    try:
+        _report(runner.rerun(run_dir, job_id, seed=seed))
+    except KeyError as exc:
+        raise click.ClickException(f"no job {job_id!r} in this run") from exc
 
 
 if __name__ == "__main__":
