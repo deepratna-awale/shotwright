@@ -13,6 +13,7 @@ from ..profiles import Continuity
 class InitKind(str, Enum):
     IMAGE = "image"
     LAST_FRAME = "last_frame"
+    OVERLAP = "overlap"
 
 
 class JobInit(BaseModel):
@@ -20,6 +21,7 @@ class JobInit(BaseModel):
     path: str | None = None
     job: str | None = None
     strategy: Continuity | None = None
+    frames: int = 1
 
 
 class Job(BaseModel):
@@ -43,9 +45,14 @@ class Job(BaseModel):
 
     @property
     def depends_on(self) -> str | None:
-        if self.init is not None and self.init.kind == InitKind.LAST_FRAME:
+        if self.init is not None and self.init.kind in (InitKind.LAST_FRAME, InitKind.OVERLAP):
             return self.init.job
         return None
+
+    @property
+    def shared_frames(self) -> int:
+        """Leading frames that repeat the end of the job this one continues from."""
+        return self.init.frames if self.depends_on is not None else 0
 
 
 class PlannedLine(BaseModel):
@@ -96,7 +103,7 @@ class Plan(BaseModel):
 
     @property
     def total_frames(self) -> int:
-        return sum(j.frames - (1 if j.depends_on else 0) for j in self.jobs)
+        return sum(j.frames - j.shared_frames for j in self.jobs)
 
     def summary(self) -> str:
         lines = [
@@ -112,7 +119,7 @@ class Plan(BaseModel):
                 f"  {job.id.ljust(width)}  {job.model}  {job.frames}f @ {job.fps:g}  "
                 f"{job.width}x{job.height}  seed {job.seed}  {link}"
             )
-        seconds = sum((j.frames - (1 if j.depends_on else 0)) / j.fps for j in self.jobs)
+        seconds = sum((j.frames - j.shared_frames) / j.fps for j in self.jobs)
         lines.append("")
         lines.append(f"duration  about {seconds:.1f} s before resampling")
         return "\n".join(lines)

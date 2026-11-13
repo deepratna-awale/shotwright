@@ -77,8 +77,13 @@ def compile_plan(
             seconds = shot.frames / out.fps
         else:
             seconds = profile.frames.default / native
+        shared = (
+            spec.continuity.overlap
+            if spec.continuity.overlap > 1 and Continuity.OVERLAP_CONTEXT in profile.continuity
+            else 1
+        )
         if continuous:
-            seconds += 1 / native
+            seconds += shared / native
 
         try:
             result = snap(
@@ -87,7 +92,7 @@ def compile_plan(
                 height=out.height,
                 duration=seconds,
                 fps=out.fps,
-                overlap=1,
+                overlap=shared,
             )
         except ValueError as exc:
             problems.append(f"shot {shot.id!r}: {exc}")
@@ -138,16 +143,19 @@ def compile_plan(
         count = len(result.segments)
         for index, frames in enumerate(result.segments):
             job_id = shot.id if count == 1 else f"{shot.id}.{index + 1:02d}"
-            if index > 0:
-                init = JobInit(
-                    kind=InitKind.LAST_FRAME, job=jobs[-1].id, strategy=Continuity.LAST_FRAME_I2V
-                )
-                hops += 1
-            elif continuous:
-                init = JobInit(
-                    kind=InitKind.LAST_FRAME,
-                    job=previous_job.id,
-                    strategy=Continuity.LAST_FRAME_I2V,
+            if index > 0 or continuous:
+                parent = jobs[-1].id if index > 0 else previous_job.id
+                init = (
+                    JobInit(
+                        kind=InitKind.OVERLAP,
+                        job=parent,
+                        strategy=Continuity.OVERLAP_CONTEXT,
+                        frames=shared,
+                    )
+                    if shared > 1
+                    else JobInit(
+                        kind=InitKind.LAST_FRAME, job=parent, strategy=Continuity.LAST_FRAME_I2V
+                    )
                 )
                 hops += 1
             else:

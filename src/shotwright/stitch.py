@@ -128,11 +128,12 @@ def stitch(
             if not chained:
                 root = LabStats.of(frames) if color == "anchor" else None
             elif color != "none":
-                frames = match_to(frames, LabStats.of(frames[0]), LabStats.of(previous[1]))
+                seam_frame = frames[max(job.shared_frames - 1, 0)]
+                frames = match_to(frames, LabStats.of(seam_frame), LabStats.of(previous[1]))
                 if root is not None:
                     frames = match_to(frames, LabStats.of(frames), root, ramp=anchor_strength)
-            if job.depends_on is not None:
-                frames = frames[1:]
+            if job.shared_frames:
+                frames = frames[job.shared_frames :]
             if len(frames) == 0:
                 continue
 
@@ -201,8 +202,8 @@ def _job_audio(run: RunDir, job, frames_kept: int) -> np.ndarray | None:
         return None
     samples, rate = read_wav(path.read_bytes())
     samples = resample(samples, rate)
-    if job.depends_on is not None:
-        samples = samples[int(round(SAMPLE_RATE / job.fps)) :]
+    if job.shared_frames:
+        samples = samples[int(round(job.shared_frames * SAMPLE_RATE / job.fps)) :]
     length = int(round(frames_kept / job.fps * SAMPLE_RATE))
     if len(samples) < length:
         samples = np.pad(samples, (0, length - len(samples)))

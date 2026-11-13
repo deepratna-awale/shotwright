@@ -9,7 +9,18 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from ..media import file_sha256, load_image, save_image, wav_bytes, write_video
+import numpy as np
+from PIL import Image
+
+from ..media import (
+    file_sha256,
+    fit_image,
+    load_image,
+    read_video,
+    save_image,
+    wav_bytes,
+    write_video,
+)
 from ..plan import InitKind, Job, Plan
 from ..policy import check as check_policy
 from ..profiles import ModelProfile, Registry, VramPreset, default_registry
@@ -115,15 +126,31 @@ class Runner:
         inputs = JobInputs()
         hashes = []
         if job.init is not None:
-            if job.init.kind == InitKind.IMAGE:
-                path = Path(job.init.path)
+            if job.init.kind == InitKind.OVERLAP:
+                clip = run.clip_path(job.init.job)
+                if not clip.is_file():
+                    raise RunError(f"{job.id}: context clip missing at {clip}")
+                frames, _ = read_video(clip)
+                tail = frames[-job.init.frames :]
+                if len(tail) < job.init.frames:
+                    raise RunError(
+                        f"{job.id}: needs {job.init.frames} context frames, "
+                        f"{job.init.job} has {len(frames)}"
+                    )
+                inputs.context_frames = np.stack([_fit(f, job.width, job.height) for f in tail])
+                inputs.init_image = inputs.context_frames[-1]
+                inputs.init_image_path = clip
+                hashes.append(f"{file_sha256(clip)}:{job.init.frames}")
             else:
-                path = run.last_frame_path(job.init.job)
-            if not path.is_file():
-                raise RunError(f"{job.id}: init image missing at {path}")
-            inputs.init_image = load_image(path, job.width, job.height)
-            inputs.init_image_path = path
-            hashes.append(file_sha256(path))
+                if job.init.kind == InitKind.IMAGE:
+                    path = Path(job.init.path)
+                else:
+                    path = run.last_frame_path(job.init.job)
+                if not path.is_file():
+                    raise RunError(f"{job.id}: init image missing at {path}")
+                inputs.init_image = load_image(path, job.width, job.height)
+                inputs.init_image_path = path
+                hashes.append(file_sha256(path))
         if job.end_image is not None:
             path = Path(job.end_image)
             if not path.is_file():
@@ -296,3 +323,9 @@ class Runner:
         )
         run.log("done", job.id, seconds=round(seconds, 3))
         return seconds
+
+
+def _fit(frame: np.ndarray, width: int, height: int) -> np.ndarray:
+    if frame.shape[:2] == (height, width):
+        return frame
+    return np.asarray(fit_image(Image.fromarray(frame), width, height))
