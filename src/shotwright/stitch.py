@@ -25,6 +25,34 @@ class Seam:
     after: str
     kind: str
     mean_abs_diff: float
+    color_delta: float = 0.0
+    jump: float = 0.0
+    flagged: bool = False
+
+
+JUMP_LIMIT = 2.5
+
+
+def _motion(frames: np.ndarray) -> float:
+    if len(frames) < 2:
+        return 0.0
+    sample = frames[:, ::2, ::2].astype(np.int16)
+    return float(np.abs(np.diff(sample, axis=0)).mean())
+
+
+def _seam(before: str, last: np.ndarray, after: str, frames: np.ndarray, chained: bool) -> Seam:
+    diff = float(np.abs(last.astype(np.int16) - frames[0].astype(np.int16)).mean())
+    delta = float(np.linalg.norm(LabStats.of(last).mean - LabStats.of(frames[0]).mean))
+    jump = diff / max(_motion(frames), 0.5)
+    return Seam(
+        before,
+        after,
+        "chain" if chained else "cut",
+        round(diff, 3),
+        round(delta, 3),
+        round(jump, 3),
+        chained and jump > JUMP_LIMIT,
+    )
 
 
 @dataclass
@@ -97,10 +125,7 @@ def stitch(
                 continue
 
             if previous is not None:
-                diff = np.abs(previous[1].astype(np.int16) - frames[0].astype(np.int16)).mean()
-                seams.append(
-                    Seam(previous[0], job.id, "chain" if chained else "cut", round(float(diff), 3))
-                )
+                seams.append(_seam(previous[0], previous[1], job.id, frames, chained))
 
             n = len(frames)
             end = start + n / job.fps
