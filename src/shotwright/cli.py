@@ -5,6 +5,7 @@ import json
 import click
 
 from . import __version__
+from .plan import PlanError, ShotList, compile_plan
 from .profiles import Conditioning, UnknownModelError, list_models
 from .snap import snap as snap_request
 
@@ -105,6 +106,23 @@ def models(conditioning, vram, family, as_json):
     widths = [max(len(r[i]) for r in [header, *rows]) for i in range(len(header))]
     for row in [header, *rows]:
         click.echo("  ".join(cell.ljust(w) for cell, w in zip(row, widths, strict=True)).rstrip())
+
+
+@main.command()
+@click.argument("shot_list", type=click.Path(exists=True, dir_okay=False))
+@click.option("--json", "as_json", is_flag=True, help="Print the compiled plan as JSON.")
+@click.option("-o", "--output", type=click.Path(dir_okay=False), help="Write the plan JSON here.")
+def plan(shot_list, as_json, output):
+    """Compile and validate SHOT_LIST without running anything."""
+    try:
+        compiled = compile_plan(ShotList.from_yaml(shot_list))
+    except PlanError as exc:
+        raise click.ClickException(f"the shot list has problems:\n{exc}") from exc
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
+    if output:
+        compiled.save(output)
+    click.echo(compiled.to_json() if as_json else compiled.summary())
 
 
 if __name__ == "__main__":

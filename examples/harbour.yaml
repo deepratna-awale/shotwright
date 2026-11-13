@@ -1,0 +1,25 @@
+project: harbour-dawn
+output: {width: 1280, height: 704, fps: 24}
+defaults:
+  model: wan2.2-ti2v-5b
+  seed: 1234
+  negative: "blurry, distorted hands, warped faces, text, watermark"
+style: "35mm film, soft morning light, gentle grain"
+shots:
+  - id: wide
+    prompt: "Fishing boats rest in a misty harbour at dawn, gulls circling overhead"
+    duration: 6
+  - id: deck
+    prompt: "The camera glides forward onto the deck of the nearest boat, ropes and nets in the foreground"
+    duration: 8
+    transition: continuous
+  - id: hands
+    prompt: "Close-up of weathered hands coiling a wet rope"
+    duration: 4
+  - id: face
+    prompt: "The old fisherman looks out to sea and smiles"
+    duration: 5
+    transition: continuous
+  - id: departure
+    prompt: "Wide shot, the boat leaves the harbour as the sun breaks through the mist"
+    duration: 10
