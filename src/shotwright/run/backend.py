@@ -26,6 +26,8 @@ class TransientError(BackendError):
 class JobInputs:
     init_image: np.ndarray | None = None
     init_image_path: Path | None = None
+    end_image: np.ndarray | None = None
+    end_image_path: Path | None = None
 
 
 @dataclass

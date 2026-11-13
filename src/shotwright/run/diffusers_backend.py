@@ -165,6 +165,8 @@ class DiffusersBackend:
         }
         if inputs.init_image is not None:
             wanted["image"] = Image.fromarray(inputs.init_image)
+        if inputs.end_image is not None:
+            wanted["last_image"] = Image.fromarray(inputs.end_image)
         wanted.update(job.params)
         try:
             params = inspect.signature(pipe.__call__).parameters
@@ -176,6 +178,8 @@ class DiffusersBackend:
     def run(self, job: Job, inputs: JobInputs) -> ClipResult:
         pipe = self._pipe(image_to_video=inputs.init_image is not None)
         kwargs = self._kwargs(pipe, job, inputs)
+        if inputs.end_image is not None and "last_image" not in kwargs:
+            raise BackendError(f"{type(pipe).__name__} cannot take an end image")
         oom_types = tuple(
             t
             for t in (
