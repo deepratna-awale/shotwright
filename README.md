@@ -4,7 +4,7 @@ Plan, run and stitch long videos across open-weight video diffusion models.
 
 Every video model makes clips of a few seconds under its own rules. Wan 2.1 wants 4n+1 frames at 16 fps, LTX-2 wants 8n+1 frames with sides divisible by 32, HunyuanVideo 1.5 wants 4n+1 frames at 24 fps. Anything longer than one clip means chaining shots, carrying continuity across them and fixing drift at the seams. shotwright handles that layer so you don't rebuild it by hand for every model.
 
-> Status: early development. The constraint table, shot planner, diffusers and ComfyUI runners, and stitcher work today; hosted runners are next.
+> Status: early development. Planning, the diffusers, ComfyUI and hosted runners, stitching with drift correction, LLM prompt writing and voice-over all work. Expect the API to change before 0.1.
 
 ## Install
 
@@ -124,6 +124,22 @@ Workflows are ComfyUI API-format JSON files named `<model id>.t2v.json` and `<mo
 | `{{steps\|20}}` | anything else, with a default; a shot's `params` override it |
 
 Put the files in a directory and pass `--workflows DIR`, or set `SHOTWRIGHT_WORKFLOW_PATH`. A `<model id>+<recipe>.t2v.json` file is used for that VRAM recipe, so a low-memory variant can swap in GGUF or block-swap nodes.
+
+## Render through hosted APIs
+
+`--backend hosted` sends jobs to fal or Replicate. Each model and mode needs a small spec file that maps job values onto the provider's input fields:
+
+```json
+{
+  "provider": "fal",
+  "app": "<fal app id>",
+  "input": {"prompt": "{{prompt}}", "num_frames": "{{frames}}", "seed": "{{seed}}",
+            "aspect_ratio": "{{aspect_ratio}}", "image_url": "{{image}}"},
+  "video": "video.url"
+}
+```
+
+Save it as `<model id>.t2v.json`, `.i2v.json` or `.flf2v.json` in a directory passed with `--workflows`, or set `SHOTWRIGHT_HOSTED_PATH`. Set `FAL_KEY` or `REPLICATE_API_TOKEN`. Besides the ComfyUI placeholders, you can use `{{seconds}}`, `{{aspect_ratio}}` and `{{resolution}}`. Init and end frames are sent as data URIs. Results that come back at another size or frame count are cropped and resampled to fit the plan, and the change is recorded in the job's meta.
 
 ## Run on RunPod
 
