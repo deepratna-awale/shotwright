@@ -7,10 +7,12 @@ from pathlib import Path
 
 import numpy as np
 
+from .color import LabStats, match_to
 from .media import VideoWriter, read_video, resize_crop
 from .run.rundir import RunDir
 
 METHODS = ("resample", "blend")
+COLOR_MODES = ("none", "seam", "anchor")
 
 
 class StitchError(RuntimeError):
@@ -43,9 +45,13 @@ def stitch(
     fps: float | None = None,
     method: str = "resample",
     crf: int = 16,
+    color: str = "seam",
+    anchor_strength: float = 0.5,
 ) -> StitchResult:
     if method not in METHODS:
         raise ValueError(f"method must be one of {', '.join(METHODS)}")
+    if color not in COLOR_MODES:
+        raise ValueError(f"color must be one of {', '.join(COLOR_MODES)}")
     run = RunDir(run_dir)
     if not run.exists():
         raise StitchError(f"no plan.json in {run.root}")
@@ -65,23 +71,30 @@ def stitch(
     step = 1.0 / out_fps
     seams: list[Seam] = []
     previous: tuple[str, np.ndarray] | None = None
+    root: LabStats | None = None
 
     with VideoWriter(out_path, plan.output_width, plan.output_height, out_fps, crf) as writer:
         start = 0.0
         k = 0
         for job in plan.jobs:
             frames, _ = read_video(run.clip_path(job.id))
-            chained = job.depends_on is not None
-            if chained:
-                frames = frames[1:]
-            if len(frames) == 0:
-                continue
             frames = np.stack([resize_crop(f, job.resize_to, job.crop) for f in frames])
             if frames.shape[1:3] != (plan.output_height, plan.output_width):
                 raise StitchError(
                     f"{job.id}: frames are {frames.shape[2]}x{frames.shape[1]} after resize, "
                     f"expected {plan.output_width}x{plan.output_height}"
                 )
+            chained = job.depends_on is not None and previous is not None
+            if not chained:
+                root = LabStats.of(frames) if color == "anchor" else None
+            elif color != "none":
+                frames = match_to(frames, LabStats.of(frames[0]), LabStats.of(previous[1]))
+                if root is not None:
+                    frames = match_to(frames, LabStats.of(frames), root, ramp=anchor_strength)
+            if job.depends_on is not None:
+                frames = frames[1:]
+            if len(frames) == 0:
+                continue
 
             if previous is not None:
                 diff = np.abs(previous[1].astype(np.int16) - frames[0].astype(np.int16)).mean()
@@ -112,6 +125,7 @@ def stitch(
         "fps": out_fps,
         "duration": round(result.duration, 4),
         "method": method,
+        "color": color,
         "seams": [asdict(s) for s in seams],
     }
     (run.root / "stitch.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")

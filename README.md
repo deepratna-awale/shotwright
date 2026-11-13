@@ -4,13 +4,28 @@ Plan, run and stitch long videos across open-weight video diffusion models.
 
 Every video model makes clips of a few seconds under its own rules. Wan 2.1 wants 4n+1 frames at 16 fps, LTX-2 wants 8n+1 frames with sides divisible by 32, HunyuanVideo 1.5 wants 4n+1 frames at 24 fps. Anything longer than one clip means chaining shots, carrying continuity across them and fixing drift at the seams. shotwright handles that layer so you don't rebuild it by hand for every model.
 
-> Status: early development. The constraint table and `snap` are usable today; the shot planner, runners (ComfyUI, diffusers, hosted APIs) and stitcher are next.
+> Status: early development. The constraint table, shot planner, diffusers runner and stitcher work today; ComfyUI and hosted runners are next.
 
 ## Install
 
 ```bash
-pip install -e .
+pip install -e .                # planning and stitching
+pip install -e ".[diffusers]"   # plus local rendering through diffusers
 ```
+
+## Render a shot list
+
+Write the film as shots. Each shot is snapped to its model's rules, long shots are split into chained segments, and `continuous` shots start from the last frame of the shot before.
+
+```bash
+shotwright plan examples/harbour.yaml                       # see the job graph
+shotwright run examples/harbour.yaml --backend diffusers --vram 24
+shotwright resume runs/harbour-dawn-20261113T120000         # after a crash, reuses finished clips
+shotwright rerun runs/harbour-dawn-20261113T120000 deck --seed 7
+shotwright stitch runs/harbour-dawn-20261113T120000 --fps 24
+```
+
+The stitcher drops the duplicated frame at each chained seam, resizes and crops to the output size, converts frame rates, and corrects colour drift across chains. `--color seam` matches each clip to the one before it. `--color anchor` also pulls long chains back toward the look of their first shot.
 
 ## Snap a request to legal values
 
