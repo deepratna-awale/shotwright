@@ -61,6 +61,7 @@ class StitchResult:
     frames: int
     fps: float
     seams: list[Seam] = field(default_factory=list)
+    timeline: list[dict] = field(default_factory=list)
 
     @property
     def duration(self) -> float:
@@ -98,6 +99,7 @@ def stitch(
     out_fps = float(fps or plan.output_fps)
     step = 1.0 / out_fps
     seams: list[Seam] = []
+    timeline: list[dict] = []
     previous: tuple[str, np.ndarray] | None = None
     root: LabStats | None = None
 
@@ -139,11 +141,16 @@ def stitch(
                     frame = frames[i]
                 writer.write(frame)
                 k += 1
+            timeline.append(
+                {"job": job.id, "shot": job.shot_id, "start": round(start, 4), "end": round(end, 4)}
+            )
             start = end
             previous = (job.id, frames[-1])
         written = writer.frames_written
 
-    result = StitchResult(path=out_path, frames=written, fps=out_fps, seams=seams)
+    result = StitchResult(
+        path=out_path, frames=written, fps=out_fps, seams=seams, timeline=timeline
+    )
     report = {
         "output": str(out_path),
         "frames": written,
@@ -152,6 +159,7 @@ def stitch(
         "method": method,
         "color": color,
         "seams": [asdict(s) for s in seams],
+        "timeline": timeline,
     }
     (run.root / "stitch.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     run.log("stitched", output=str(out_path), frames=written, fps=out_fps)

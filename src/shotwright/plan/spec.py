@@ -30,6 +30,14 @@ class Defaults(BaseModel):
     params: dict[str, Any] = Field(default_factory=dict)
 
 
+class Line(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    text: str = Field(min_length=1)
+    speaker: str | None = None
+    at: float = Field(default=0.0, ge=0)
+
+
 class ContinuitySettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -51,6 +59,7 @@ class ShotSpec(BaseModel):
     init_image: str | None = None
     end_image: str | None = None
     params: dict[str, Any] = Field(default_factory=dict)
+    lines: list[Line] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _length(self) -> ShotSpec:
@@ -67,6 +76,7 @@ class ShotList(BaseModel):
     defaults: Defaults = Field(default_factory=Defaults)
     style: str | None = None
     continuity: ContinuitySettings = Field(default_factory=ContinuitySettings)
+    voices: dict[str, str] = Field(default_factory=dict)
     shots: list[ShotSpec] = Field(min_length=1)
     base_dir: Path | None = Field(default=None, exclude=True)
 

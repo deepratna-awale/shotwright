@@ -215,6 +215,33 @@ def download(models, target, comfy_models):
             click.echo(f"{model:<24} {path}")
 
 
+@main.command()
+@click.argument("run_dir", type=click.Path(exists=True, file_okay=False))
+@click.option(
+    "-o", "--output", type=click.Path(dir_okay=False), help="Defaults to <video>.voiced.mp4."
+)
+@click.option("--tts-model", help="Speech model. Defaults to $SHOTWRIGHT_TTS_MODEL.")
+@click.option(
+    "--tts-url", help="OpenAI-compatible speech server. Defaults to $SHOTWRIGHT_TTS_BASE_URL."
+)
+@click.option("--fake", is_flag=True, help="Use placeholder tones instead of a speech server.")
+def voice(run_dir, output, tts_model, tts_url, fake):
+    """Speak the shot list's lines over the stitched video in RUN_DIR."""
+    from .audio import AudioError, FakeVoice, OpenAISpeech, voice_over
+
+    speaker = FakeVoice() if fake else OpenAISpeech(model=tts_model, base_url=tts_url)
+    try:
+        result = voice_over(run_dir, speaker, out=output)
+    except AudioError as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(f"wrote     {result.path} ({len(result.lines)} lines)")
+    for line in result.lines:
+        if line.clipped:
+            click.echo(f"  check   line in {line.shot} runs past the end of the video")
+    for first, second in result.overlaps:
+        click.echo(f"  check   lines overlap: {first[:30]!r} and {second[:30]!r}")
+
+
 BACKENDS = ["fake", "diffusers", "comfyui"]
 
 
