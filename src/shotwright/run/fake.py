@@ -23,10 +23,12 @@ class FakeBackend:
         fail: Iterable[str] = (),
         oom_until_recipe: str | None = None,
         transient: dict[str, int] | None = None,
+        audio: bool = False,
     ):
         self.fail = set(fail)
         self.oom_until_recipe = oom_until_recipe
         self.transient = dict(transient or {})
+        self.audio = audio
         self.loaded: tuple[str, str | None] | None = None
         self.loads: list[tuple[str, str | None]] = []
         self.calls: list[str] = []
@@ -70,7 +72,18 @@ class FakeBackend:
         for i in range(job.frames):
             t = i / max(job.frames - 1, 1)
             frames[i] = np.clip(start * (1 - t) + end * t, 0, 255).astype(np.uint8)
-        return ClipResult(frames=frames, fps=job.fps, meta={"backend": self.name})
+        sound = None
+        if self.audio:
+            rate = 16000
+            t = np.arange(int(job.frames / job.fps * rate)) / rate
+            sound = (0.2 * np.sin(2 * np.pi * (200 + job.seed % 300) * t)).astype(np.float32)
+        return ClipResult(
+            frames=frames,
+            fps=job.fps,
+            meta={"backend": self.name},
+            audio=sound,
+            audio_rate=16000 if sound is not None else None,
+        )
 
     def release(self) -> None:
         self.loaded = None

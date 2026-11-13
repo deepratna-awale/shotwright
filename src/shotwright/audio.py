@@ -1,66 +1,18 @@
 from __future__ import annotations
 
 import hashlib
-import io
 import json
 import os
-import subprocess
 import urllib.error
 import urllib.request
-import wave
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
-import imageio_ffmpeg
 import numpy as np
 
+from .media import SAMPLE_RATE, AudioError, mux, read_wav, resample, wav_bytes
 from .run.rundir import RunDir
-
-SAMPLE_RATE = 48000
-
-
-class AudioError(RuntimeError):
-    pass
-
-
-def read_wav(data: bytes) -> tuple[np.ndarray, int]:
-    try:
-        with wave.open(io.BytesIO(data)) as w:
-            rate, width, channels = w.getframerate(), w.getsampwidth(), w.getnchannels()
-            raw = w.readframes(w.getnframes())
-    except (wave.Error, EOFError) as exc:
-        raise AudioError(f"not a PCM WAV file: {exc}") from exc
-    if width == 2:
-        samples = np.frombuffer(raw, dtype="<i2").astype(np.float32) / 32768
-    elif width == 4:
-        samples = np.frombuffer(raw, dtype="<i4").astype(np.float32) / 2147483648
-    elif width == 1:
-        samples = (np.frombuffer(raw, dtype=np.uint8).astype(np.float32) - 128) / 128
-    else:
-        raise AudioError(f"unsupported WAV sample width {width}")
-    if channels > 1:
-        samples = samples.reshape(-1, channels).mean(axis=1)
-    return samples, rate
-
-
-def wav_bytes(samples: np.ndarray, rate: int) -> bytes:
-    pcm = (np.clip(samples, -1, 1) * 32767).round().astype("<i2")
-    buffer = io.BytesIO()
-    with wave.open(buffer, "wb") as w:
-        w.setnchannels(1)
-        w.setsampwidth(2)
-        w.setframerate(rate)
-        w.writeframes(pcm.tobytes())
-    return buffer.getvalue()
-
-
-def resample(samples: np.ndarray, rate: int, target: int = SAMPLE_RATE) -> np.ndarray:
-    if rate == target or len(samples) == 0:
-        return samples.astype(np.float32)
-    n = round(len(samples) * target / rate)
-    positions = np.linspace(0, len(samples) - 1, n)
-    return np.interp(positions, np.arange(len(samples)), samples).astype(np.float32)
 
 
 class Voice(Protocol):
@@ -168,42 +120,17 @@ def _synth_cached(run: RunDir, voice: Voice, text: str, name: str | None) -> np.
     return resample(samples, rate)
 
 
-def mux(video: Path, audio: Path, out: Path) -> None:
-    command = [
-        imageio_ffmpeg.get_ffmpeg_exe(),
-        "-y",
-        "-loglevel",
-        "error",
-        "-i",
-        str(video),
-        "-i",
-        str(audio),
-        "-map",
-        "0:v:0",
-        "-map",
-        "1:a:0",
-        "-c:v",
-        "copy",
-        "-c:a",
-        "aac",
-        "-b:a",
-        "192k",
-        str(out),
-    ]
-    done = subprocess.run(command, capture_output=True, text=True)
-    if done.returncode != 0:
-        raise AudioError(f"ffmpeg could not mux audio: {done.stderr.strip()[-500:]}")
-
-
 def voice_over(
     run_dir: str | Path,
     voice: Voice,
     out: str | Path | None = None,
     gap: float = 0.15,
+    duck: float = 0.35,
 ) -> VoiceResult:
     """Speak the plan's lines at their shots' times and mux them into the stitched video.
 
     Lines in the same shot without an explicit offset follow each other with a short gap.
+    When the video has its own generated sound, it is kept and lowered to `duck` under speech.
     """
     run = RunDir(run_dir)
     report_path = run.root / "stitch.json"
@@ -243,6 +170,14 @@ def voice_over(
         if b.start < a.end:
             overlaps.append((a.text, b.text))
 
+    native_path = run.root / "native_audio.wav"
+    if report.get("audio") and native_path.is_file():
+        native, rate = read_wav(native_path.read_bytes())
+        native = resample(native, rate)[: len(track)]
+        native = np.pad(native, (0, len(track) - len(native)))
+        speaking = _envelope(track) > 0.01
+        track = track + native * np.where(speaking, duck, 1.0).astype(np.float32)
+
     peak = float(np.abs(track).max()) if len(track) else 0.0
     if peak > 0.89:
         track *= 0.89 / peak
@@ -252,3 +187,9 @@ def voice_over(
     mux(video, audio_path, out_path)
     run.log("voiced", output=str(out_path), lines=len(placed))
     return VoiceResult(out_path, audio_path, placed, overlaps)
+
+
+def _envelope(track: np.ndarray, window: float = 0.05) -> np.ndarray:
+    size = max(1, int(window * SAMPLE_RATE))
+    kernel = np.ones(size, dtype=np.float32) / size
+    return np.convolve(np.abs(track), kernel, mode="same")

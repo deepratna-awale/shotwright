@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from ..media import file_sha256, load_image, save_image, write_video
+from ..media import file_sha256, load_image, save_image, wav_bytes, write_video
 from ..plan import InitKind, Job, Plan
 from ..policy import check as check_policy
 from ..profiles import ModelProfile, Registry, VramPreset, default_registry
@@ -277,6 +277,11 @@ class Runner:
         clip_path = run.clip_path(job.id)
         write_video(clip_path, frames, job.fps)
         save_image(run.last_frame_path(job.id), frames[-1])
+        audio_path = run.audio_path(job.id)
+        if clip.audio is not None and clip.audio_rate:
+            audio_path.write_bytes(wav_bytes(clip.audio, clip.audio_rate))
+        elif audio_path.exists():
+            audio_path.unlink()
         run.write_meta(
             job.id,
             {

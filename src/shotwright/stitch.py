@@ -8,7 +8,16 @@ from pathlib import Path
 import numpy as np
 
 from .color import LabStats, match_to
-from .media import VideoWriter, read_video, resize_crop
+from .media import (
+    SAMPLE_RATE,
+    VideoWriter,
+    mux,
+    read_video,
+    read_wav,
+    resample,
+    resize_crop,
+    wav_bytes,
+)
 from .run.rundir import RunDir
 
 METHODS = ("resample", "blend")
@@ -100,6 +109,7 @@ def stitch(
     step = 1.0 / out_fps
     seams: list[Seam] = []
     timeline: list[dict] = []
+    sound: list[tuple[float, np.ndarray]] = []
     previous: tuple[str, np.ndarray] | None = None
     root: LabStats | None = None
 
@@ -131,6 +141,9 @@ def stitch(
 
             n = len(frames)
             end = start + n / job.fps
+            piece = _job_audio(run, job, n)
+            if piece is not None:
+                sound.append((start, piece))
             while k * step < end - 1e-9:
                 pos = (k * step - start) * job.fps
                 i = min(max(math.floor(pos + 1e-9), 0), n - 1)
@@ -148,6 +161,20 @@ def stitch(
             previous = (job.id, frames[-1])
         written = writer.frames_written
 
+    has_audio = bool(sound)
+    if has_audio:
+        track = np.zeros(int(round(written / out_fps * SAMPLE_RATE)), dtype=np.float32)
+        for begin, piece in sound:
+            first = int(round(begin * SAMPLE_RATE))
+            stop = min(first + len(piece), len(track))
+            if stop > first:
+                track[first:stop] = piece[: stop - first]
+        audio_path = run.root / "native_audio.wav"
+        audio_path.write_bytes(wav_bytes(track, SAMPLE_RATE))
+        muxed = out_path.with_name(f".{out_path.stem}.muxing{out_path.suffix}")
+        mux(out_path, audio_path, muxed)
+        muxed.replace(out_path)
+
     result = StitchResult(
         path=out_path, frames=written, fps=out_fps, seams=seams, timeline=timeline
     )
@@ -158,9 +185,25 @@ def stitch(
         "duration": round(result.duration, 4),
         "method": method,
         "color": color,
+        "audio": has_audio,
         "seams": [asdict(s) for s in seams],
         "timeline": timeline,
     }
     (run.root / "stitch.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     run.log("stitched", output=str(out_path), frames=written, fps=out_fps)
     return result
+
+
+def _job_audio(run: RunDir, job, frames_kept: int) -> np.ndarray | None:
+    """The job's own audio, minus the shared first frame of a chain, fitted to its frames."""
+    path = run.audio_path(job.id)
+    if not path.is_file():
+        return None
+    samples, rate = read_wav(path.read_bytes())
+    samples = resample(samples, rate)
+    if job.depends_on is not None:
+        samples = samples[int(round(SAMPLE_RATE / job.fps)) :]
+    length = int(round(frames_kept / job.fps * SAMPLE_RATE))
+    if len(samples) < length:
+        samples = np.pad(samples, (0, length - len(samples)))
+    return samples[:length]
