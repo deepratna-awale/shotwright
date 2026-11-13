@@ -10,6 +10,7 @@ from .profiles import (  # noqa: E402
     get_profile,
     list_models,
 )
+from .review import contact_sheet  # noqa: E402
 from .snap import Adjustment, Crop, Postprocess, SnapResult, snap  # noqa: E402
 from .stitch import StitchResult, stitch  # noqa: E402
 
@@ -29,6 +30,7 @@ __all__ = [
     "UnknownModelError",
     "__version__",
     "compile_plan",
+    "contact_sheet",
     "get_profile",
     "list_models",
     "snap",

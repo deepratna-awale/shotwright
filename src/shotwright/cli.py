@@ -8,6 +8,7 @@ import click
 from . import __version__
 from .plan import PlanError, ShotList, compile_plan
 from .profiles import Conditioning, UnknownModelError, list_models
+from .review import ReviewError, contact_sheet
 from .run import DiffusersBackend, FakeBackend, Runner, RunResult
 from .snap import snap as snap_request
 from .stitch import COLOR_MODES, METHODS, StitchError
@@ -255,11 +256,30 @@ def stitch(run_dir, output, fps, method, crf, color, anchor_strength):
         raise click.ClickException(str(exc)) from exc
     click.echo(f"wrote     {result.path}")
     click.echo(f"length    {result.frames} frames at {result.fps:g} fps ({result.duration:.2f} s)")
-    worst = sorted(result.seams, key=lambda s: s.mean_abs_diff, reverse=True)[:3]
-    for seam in worst:
-        click.echo(
-            f"  seam    {seam.before} -> {seam.after} ({seam.kind}): {seam.mean_abs_diff:.1f}"
-        )
+    for seam in result.seams:
+        if seam.flagged:
+            click.echo(
+                f"  check   {seam.before} -> {seam.after}: visible jump "
+                f"({seam.jump:.1f}x normal motion). Try `shotwright rerun` with a new seed."
+            )
+
+
+@main.command()
+@click.argument("run_dir", type=click.Path(exists=True, file_okay=False))
+@click.option(
+    "-o", "--output", type=click.Path(dir_okay=False), help="Defaults to contact_sheet.png."
+)
+@click.option("--frames", "per_job", type=click.IntRange(1, 24), default=6, show_default=True)
+@click.option(
+    "--width", "thumb_width", type=click.IntRange(32, 1024), default=192, show_default=True
+)
+def sheet(run_dir, output, per_job, thumb_width):
+    """Write a contact sheet of every job in RUN_DIR, with seam scores after a stitch."""
+    try:
+        path = contact_sheet(run_dir, out=output, per_job=per_job, thumb_width=thumb_width)
+    except ReviewError as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(f"wrote     {path}")
 
 
 if __name__ == "__main__":
