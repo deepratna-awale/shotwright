@@ -9,6 +9,8 @@ from .plan import PlanError, ShotList, compile_plan
 from .profiles import Conditioning, UnknownModelError, list_models
 from .run import FakeBackend, Runner, RunResult
 from .snap import snap as snap_request
+from .stitch import METHODS, StitchError
+from .stitch import stitch as stitch_run
 
 CONDITIONING_CHOICES = [c.value for c in Conditioning]
 
@@ -197,6 +199,33 @@ def rerun(run_dir, job_id, seed, backend, vram):
         _report(runner.rerun(run_dir, job_id, seed=seed))
     except KeyError as exc:
         raise click.ClickException(f"no job {job_id!r} in this run") from exc
+
+
+@main.command()
+@click.argument("run_dir", type=click.Path(exists=True, file_okay=False))
+@click.option("-o", "--output", type=click.Path(dir_okay=False), help="Defaults to final.mp4.")
+@click.option("--fps", type=float, help="Output fps. Defaults to the plan's output fps.")
+@click.option(
+    "--method",
+    type=click.Choice(METHODS),
+    default="resample",
+    show_default=True,
+    help="How to convert from each model's native fps.",
+)
+@click.option("--crf", type=int, default=16, show_default=True, help="x264 quality.")
+def stitch(run_dir, output, fps, method, crf):
+    """Join the rendered clips in RUN_DIR into one video."""
+    try:
+        result = stitch_run(run_dir, out=output, fps=fps, method=method, crf=crf)
+    except StitchError as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(f"wrote     {result.path}")
+    click.echo(f"length    {result.frames} frames at {result.fps:g} fps ({result.duration:.2f} s)")
+    worst = sorted(result.seams, key=lambda s: s.mean_abs_diff, reverse=True)[:3]
+    for seam in worst:
+        click.echo(
+            f"  seam    {seam.before} -> {seam.after} ({seam.kind}): {seam.mean_abs_diff:.1f}"
+        )
 
 
 if __name__ == "__main__":

@@ -11,6 +11,7 @@ from .profiles import (  # noqa: E402
     list_models,
 )
 from .snap import Adjustment, Crop, Postprocess, SnapResult, snap  # noqa: E402
+from .stitch import StitchResult, stitch  # noqa: E402
 
 __all__ = [
     "Adjustment",
@@ -24,10 +25,12 @@ __all__ = [
     "Resolution",
     "ShotList",
     "SnapResult",
+    "StitchResult",
     "UnknownModelError",
     "__version__",
     "compile_plan",
     "get_profile",
     "list_models",
     "snap",
+    "stitch",
 ]
