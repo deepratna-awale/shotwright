@@ -195,6 +195,9 @@ class DiffusersBackend:
 
         frames = to_uint8_frames(output.frames[0] if hasattr(output, "frames") else output[0])
         meta: dict[str, Any] = {"pipeline": type(pipe).__name__}
+        audio, rate = native_audio(pipe, output)
+        if audio is not None:
+            meta["audio_rate"] = rate
         if frames.shape[1:3] != (job.height, job.width):
             meta["resized_from"] = [int(frames.shape[2]), int(frames.shape[1])]
             frames = np.stack(
@@ -207,7 +210,7 @@ class DiffusersBackend:
             )
         if frames.shape[0] != job.frames:
             meta["frames_returned"] = int(frames.shape[0])
-        return ClipResult(frames=frames, fps=job.fps, meta=meta)
+        return ClipResult(frames=frames, fps=job.fps, meta=meta, audio=audio, audio_rate=rate)
 
 
 def to_uint8_frames(video: Any) -> np.ndarray:
@@ -225,3 +228,22 @@ def to_uint8_frames(video: Any) -> np.ndarray:
     if arr.shape[-1] == 1:
         arr = np.repeat(arr, 3, axis=-1)
     return arr
+
+
+def native_audio(pipe: Any, output: Any) -> tuple[np.ndarray | None, int | None]:
+    """Mono float audio and its sample rate from pipelines that generate sound, such as LTX-2."""
+    audio = getattr(output, "audio", None)
+    if audio is None:
+        return None, None
+    if isinstance(audio, (list, tuple)) or getattr(audio, "ndim", 0) == 3:
+        audio = audio[0]
+    if hasattr(audio, "detach"):
+        audio = audio.detach().float().cpu().numpy()
+    arr = np.asarray(audio, dtype=np.float32)
+    if arr.ndim == 2:
+        arr = arr.mean(axis=0) if arr.shape[0] <= 8 else arr.mean(axis=1)
+    config = getattr(getattr(pipe, "vocoder", None), "config", None)
+    rate = getattr(config, "output_sampling_rate", None) or getattr(
+        pipe, "audio_sampling_rate", None
+    )
+    return arr.reshape(-1), int(rate or 24000)

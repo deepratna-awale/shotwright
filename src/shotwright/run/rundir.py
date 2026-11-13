@@ -15,6 +15,7 @@ JOBS_DIR = "jobs"
 CLIP_FILE = "clip.mp4"
 LAST_FRAME_FILE = "last.png"
 META_FILE = "meta.json"
+AUDIO_FILE = "audio.wav"
 
 
 def new_run_name(project: str) -> str:
@@ -60,6 +61,9 @@ class RunDir:
 
     def last_frame_path(self, job_id: str) -> Path:
         return self.job_dir(job_id) / LAST_FRAME_FILE
+
+    def audio_path(self, job_id: str) -> Path:
+        return self.job_dir(job_id) / AUDIO_FILE
 
     def meta_path(self, job_id: str) -> Path:
         return self.job_dir(job_id) / META_FILE

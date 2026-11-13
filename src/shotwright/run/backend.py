@@ -35,6 +35,8 @@ class ClipResult:
     frames: np.ndarray
     fps: float
     meta: dict[str, Any] = field(default_factory=dict)
+    audio: np.ndarray | None = None
+    audio_rate: int | None = None
 
 
 @runtime_checkable

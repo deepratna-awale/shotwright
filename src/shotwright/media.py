@@ -1,11 +1,20 @@
 from __future__ import annotations
 
 import hashlib
+import io
+import subprocess
+import wave
 from pathlib import Path
 
 import imageio_ffmpeg
 import numpy as np
 from PIL import Image
+
+SAMPLE_RATE = 48000
+
+
+class AudioError(RuntimeError):
+    pass
 
 
 class VideoWriter:
@@ -101,3 +110,69 @@ def file_sha256(path: str | Path) -> str:
         for chunk in iter(lambda: f.read(1 << 20), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+def read_wav(data: bytes) -> tuple[np.ndarray, int]:
+    try:
+        with wave.open(io.BytesIO(data)) as w:
+            rate, width, channels = w.getframerate(), w.getsampwidth(), w.getnchannels()
+            raw = w.readframes(w.getnframes())
+    except (wave.Error, EOFError) as exc:
+        raise AudioError(f"not a PCM WAV file: {exc}") from exc
+    if width == 2:
+        samples = np.frombuffer(raw, dtype="<i2").astype(np.float32) / 32768
+    elif width == 4:
+        samples = np.frombuffer(raw, dtype="<i4").astype(np.float32) / 2147483648
+    elif width == 1:
+        samples = (np.frombuffer(raw, dtype=np.uint8).astype(np.float32) - 128) / 128
+    else:
+        raise AudioError(f"unsupported WAV sample width {width}")
+    if channels > 1:
+        samples = samples.reshape(-1, channels).mean(axis=1)
+    return samples, rate
+
+
+def wav_bytes(samples: np.ndarray, rate: int) -> bytes:
+    pcm = (np.clip(samples, -1, 1) * 32767).round().astype("<i2")
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(pcm.tobytes())
+    return buffer.getvalue()
+
+
+def resample(samples: np.ndarray, rate: int, target: int = SAMPLE_RATE) -> np.ndarray:
+    if rate == target or len(samples) == 0:
+        return samples.astype(np.float32)
+    n = round(len(samples) * target / rate)
+    positions = np.linspace(0, len(samples) - 1, n)
+    return np.interp(positions, np.arange(len(samples)), samples).astype(np.float32)
+
+
+def mux(video: Path, audio: Path, out: Path) -> None:
+    command = [
+        imageio_ffmpeg.get_ffmpeg_exe(),
+        "-y",
+        "-loglevel",
+        "error",
+        "-i",
+        str(video),
+        "-i",
+        str(audio),
+        "-map",
+        "0:v:0",
+        "-map",
+        "1:a:0",
+        "-c:v",
+        "copy",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        str(out),
+    ]
+    done = subprocess.run(command, capture_output=True, text=True)
+    if done.returncode != 0:
+        raise AudioError(f"ffmpeg could not mux audio: {done.stderr.strip()[-500:]}")
