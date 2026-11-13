@@ -20,7 +20,7 @@ def test_full_run_writes_every_job(tmp_path, registry, tiny_plan):
     plan = tiny_plan(SHOTS)
     result = make_runner(tmp_path, registry).start(plan, name="r")
     assert result.ok
-    assert result.done == [j.id for j in plan.jobs]
+    assert sorted(result.done) == sorted(j.id for j in plan.jobs)
     run = RunDir(result.run_dir)
     for job in plan.jobs:
         frames, fps = read_video(run.clip_path(job.id))
@@ -46,7 +46,7 @@ def test_resume_reuses_everything(tmp_path, registry, tiny_plan):
     hashes = {j.id: file_sha256(RunDir(first.run_dir).clip_path(j.id)) for j in plan.jobs}
     backend = FakeBackend()
     second = make_runner(tmp_path, registry, backend).resume(first.run_dir)
-    assert second.cached == [j.id for j in plan.jobs]
+    assert sorted(second.cached) == sorted(j.id for j in plan.jobs)
     assert backend.calls == []
     assert hashes == {j.id: file_sha256(RunDir(first.run_dir).clip_path(j.id)) for j in plan.jobs}
 
@@ -159,6 +159,13 @@ def test_jobs_grouped_by_model(tmp_path, registry, tiny_plan):
     order = [j.id for j in runner._order(plan)]
     assert order.index("a") < order.index("b")
     assert order.index("c.01") < order.index("c.02")
+
+
+def test_jobs_grouped_by_conditioning(tmp_path, registry, tiny_plan):
+    plan = tiny_plan(SHOTS)
+    order = list(make_runner(tmp_path, registry)._order(plan))
+    modes = [j.init is not None for j in order]
+    assert sum(a != b for a, b in zip(modes, modes[1:], strict=False)) == 1
 
 
 def test_events(tmp_path, registry, tiny_plan):

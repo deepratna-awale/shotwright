@@ -177,16 +177,19 @@ class Runner:
         pending = list(plan.jobs)
         ordered: list[Job] = []
         placed: set[str] = set()
-        current_model: str | None = None
+        current: tuple[str, bool] | None = None
         while pending:
             ready = [j for j in pending if j.depends_on is None or j.depends_on in placed]
             if not ready:
                 raise RunError("plan has a dependency cycle or a missing job")
-            pick = next((j for j in ready if j.model == current_model), ready[0])
+            pick = next(
+                (j for j in ready if (j.model, j.init is not None) == current),
+                next((j for j in ready if current and j.model == current[0]), ready[0]),
+            )
             ordered.append(pick)
             placed.add(pick.id)
             pending.remove(pick)
-            current_model = pick.model
+            current = (pick.model, pick.init is not None)
         return ordered
 
     def _execute(self, run: RunDir, plan: Plan) -> RunResult:

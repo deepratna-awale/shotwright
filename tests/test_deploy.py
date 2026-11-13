@@ -25,8 +25,8 @@ def test_download_diffusers_repos():
     profile = default_registry().get("hunyuanvideo-1.5-480p")
     download_diffusers(profile, snapshot=lambda repo_id: seen.append(repo_id) or f"/c/{repo_id}")
     assert seen == [
-        "hunyuanvideo-community/HunyuanVideo-1.5-480p_t2v",
-        "hunyuanvideo-community/HunyuanVideo-1.5-480p_i2v",
+        "hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-480p_t2v",
+        "hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-480p_i2v",
     ]
 
 

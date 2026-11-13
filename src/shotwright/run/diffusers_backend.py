@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 import importlib
 import inspect
 from collections.abc import Callable
@@ -85,9 +86,16 @@ class DiffusersBackend:
         self._preset = preset
 
     def release(self) -> None:
-        self._pipes.clear()
+        self._drop_pipes()
         self._profile = None
         self._preset = None
+
+    def _drop_pipes(self) -> None:
+        """Free loaded pipelines so separately loaded ones never sit in VRAM side by side."""
+        if not self._pipes:
+            return
+        self._pipes.clear()
+        gc.collect()
         torch = self._torch
         if torch is not None and getattr(torch, "cuda", None) and torch.cuda.is_available():
             torch.cuda.empty_cache()
@@ -140,12 +148,14 @@ class DiffusersBackend:
         if key == "i2v":
             i2v_repo = self.repos.get(f"{profile.id}:i2v") or backends.diffusers_repo_i2v
             if i2v_repo or self._loader is not None:
+                self._drop_pipes()
                 pipe = self._apply_recipe(self._load(class_name, i2v_repo or repo))
             else:
                 base = self._pipe(image_to_video=False)
                 cls = getattr(importlib.import_module("diffusers"), class_name)
-                pipe = self._place(cls.from_pipe(base))
+                pipe = self._place(cls.from_pipe(base, torch_dtype=self._dtype()))
         else:
+            self._drop_pipes()
             pipe = self._apply_recipe(self._load(class_name, repo))
         self._pipes[key] = pipe
         return pipe

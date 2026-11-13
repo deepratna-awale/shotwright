@@ -32,7 +32,7 @@ profiles:
     params: 22B
     frames: {min: 9, default: 121, max: 481}
     backends:
-      diffusers_repo: Lightricks/LTX-2.3
+      diffusers_repo: diffusers/LTX-2.3-Diffusers
       comfyui: ComfyUI-LTXVideo
     sources: [https://huggingface.co/Lightricks/LTX-2.3]
 

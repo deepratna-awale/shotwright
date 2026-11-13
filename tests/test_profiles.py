@@ -41,7 +41,7 @@ def test_profile_defaults_are_legal(model_id):
 def test_inheritance_merges_backends():
     p = default_registry().get("ltx-2.3")
     assert p.backends.diffusers == "LTX2Pipeline"
-    assert p.backends.diffusers_repo == "Lightricks/LTX-2.3"
+    assert p.backends.diffusers_repo == "diffusers/LTX-2.3-Diffusers"
     assert p.temporal_factor == 8
 
 
