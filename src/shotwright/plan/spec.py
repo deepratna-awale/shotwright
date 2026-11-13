@@ -41,6 +41,7 @@ class ShotSpec(BaseModel):
 
     id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
     prompt: str
+    brief: str | None = None
     duration: float | None = Field(default=None, gt=0)
     frames: int | None = Field(default=None, gt=0)
     transition: Transition = Transition.CUT
@@ -82,6 +83,14 @@ class ShotList(BaseModel):
         spec = cls(**data)
         spec.base_dir = Path(base_dir).resolve() if base_dir else None
         return spec
+
+    def to_yaml(self, path: str | Path) -> None:
+        data = self.model_dump(mode="json", exclude_none=True, exclude_defaults=True)
+        data = {"project": self.project, "output": self.output.model_dump(mode="json"), **data}
+        Path(path).write_text(
+            yaml.safe_dump(data, sort_keys=False, allow_unicode=True, width=100),
+            encoding="utf-8",
+        )
 
     def resolve_path(self, value: str) -> str:
         p = Path(value).expanduser()
