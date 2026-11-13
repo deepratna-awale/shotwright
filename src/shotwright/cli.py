@@ -242,6 +242,21 @@ def voice(run_dir, output, tts_model, tts_url, fake):
         click.echo(f"  check   lines overlap: {first[:30]!r} and {second[:30]!r}")
 
 
+@main.command()
+@click.option("--comfy-url", help="Also check that this ComfyUI server answers.")
+def doctor(comfy_url):
+    """Check what this machine can run."""
+    from .doctor import run_checks
+
+    checks = run_checks(comfy_url)
+    width = max(len(c.name) for c in checks)
+    for check in checks:
+        mark = "ok  " if check.ok else ("FAIL" if check.required else "--  ")
+        click.echo(f"{mark}  {check.name.ljust(width)}  {check.detail}")
+    if any(c.required and not c.ok for c in checks):
+        raise SystemExit(1)
+
+
 BACKENDS = ["fake", "diffusers", "comfyui", "hosted"]
 
 
