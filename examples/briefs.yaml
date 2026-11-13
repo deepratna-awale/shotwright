@@ -1,0 +1,23 @@
+# Short briefs for `shotwright enhance examples/briefs.yaml`, which writes a story
+# bible and full model-specific prompts to briefs.bible.yaml and briefs.enhanced.yaml.
+project: night-market
+output: {width: 1280, height: 704, fps: 24}
+defaults:
+  model: wan2.2-ti2v-5b
+  seed: 7
+style: "neon-lit night, shallow depth of field, handheld"
+shots:
+  - id: arrive
+    prompt: "a young cook arrives at her food stall as the market opens"
+    duration: 5
+  - id: fire
+    prompt: "she lights the wok burner"
+    duration: 4
+    transition: continuous
+  - id: crowd
+    prompt: "the crowd thickens around the stall"
+    duration: 6
+  - id: serve
+    prompt: "she hands a steaming bowl to a regular customer, who grins"
+    duration: 5
+    transition: continuous
