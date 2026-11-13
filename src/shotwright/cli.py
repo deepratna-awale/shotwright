@@ -181,6 +181,40 @@ def enhance(shot_list, output, bible_path, no_bible, llm_model, llm_url):
     click.echo(f"wrote     {out} ({len(enhanced.shots)} shots, {client.calls} LLM calls)")
 
 
+@main.command()
+@click.argument("models", nargs=-1, required=True)
+@click.option(
+    "--for",
+    "target",
+    type=click.Choice(["diffusers", "comfyui"]),
+    default="diffusers",
+    show_default=True,
+)
+@click.option(
+    "--comfy-models",
+    type=click.Path(file_okay=False),
+    default="ComfyUI/models",
+    show_default=True,
+    help="ComfyUI models folder, used with --for comfyui.",
+)
+def download(models, target, comfy_models):
+    """Download weights for MODELS into the Hugging Face cache or a ComfyUI models folder."""
+    from .download import DownloadError, download_comfyui, download_diffusers
+    from .profiles import get_profile
+
+    for model in models:
+        try:
+            profile = get_profile(model)
+            if target == "diffusers":
+                paths = download_diffusers(profile)
+            else:
+                paths = download_comfyui(profile, comfy_models)
+        except (DownloadError, UnknownModelError) as exc:
+            raise click.ClickException(str(exc)) from exc
+        for path in paths:
+            click.echo(f"{model:<24} {path}")
+
+
 BACKENDS = ["fake", "diffusers", "comfyui"]
 
 

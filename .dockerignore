@@ -1,0 +1,7 @@
+.git
+.github
+runs
+tests
+**/__pycache__
+.shotwright-cache
+*.mp4
