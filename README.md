@@ -4,7 +4,7 @@ Plan, run and stitch long videos across open-weight video diffusion models.
 
 Every video model makes clips of a few seconds under its own rules. Wan 2.1 wants 4n+1 frames at 16 fps, LTX-2 wants 8n+1 frames with sides divisible by 32, HunyuanVideo 1.5 wants 4n+1 frames at 24 fps. Anything longer than one clip means chaining shots, carrying continuity across them and fixing drift at the seams. shotwright handles that layer so you don't rebuild it by hand for every model.
 
-> Status: early development. The constraint table, shot planner, diffusers runner and stitcher work today; ComfyUI and hosted runners are next.
+> Status: early development. The constraint table, shot planner, diffusers and ComfyUI runners, and stitcher work today; hosted runners are next.
 
 ## Install
 
@@ -57,6 +57,26 @@ job.frames, job.width, job.height  # 81, 1280, 720
 for adjustment in job.adjustments:
     print(adjustment)
 ```
+
+## Render through ComfyUI
+
+Point shotwright at a running ComfyUI server and it queues one workflow per job, uploading the init frame for chained shots:
+
+```bash
+shotwright run examples/harbour.yaml --backend comfyui --comfy-url http://127.0.0.1:8188
+```
+
+Workflows are ComfyUI API-format JSON files named `<model id>.t2v.json` and `<model id>.i2v.json`. A bundled pair covers `wan2.2-ti2v-5b` using ComfyUI's native Wan nodes. For other models, export your own workflow with "Save (API)" and replace the values shotwright should control with placeholders:
+
+| Placeholder | Value |
+|---|---|
+| `{{prompt}}`, `{{negative}}` | shot prompt and negative prompt |
+| `{{seed}}`, `{{frames}}`, `{{width}}`, `{{height}}`, `{{fps}}` | the snapped job settings |
+| `{{image}}` | uploaded init frame (i2v workflows only) |
+| `{{prefix}}` | output filename prefix for SaveImage or a video save node |
+| `{{steps\|20}}` | anything else, with a default; a shot's `params` override it |
+
+Put the files in a directory and pass `--workflows DIR`, or set `SHOTWRIGHT_WORKFLOW_PATH`. A `<model id>+<recipe>.t2v.json` file is used for that VRAM recipe, so a low-memory variant can swap in GGUF or block-swap nodes.
 
 ## List models
 

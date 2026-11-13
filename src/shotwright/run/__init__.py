@@ -6,6 +6,7 @@ from .backend import (
     OutOfMemory,
     TransientError,
 )
+from .comfyui_backend import ComfyUIBackend
 from .diffusers_backend import DiffusersBackend
 from .fake import FakeBackend
 from .rundir import RunDir, job_cache_key
@@ -15,6 +16,7 @@ __all__ = [
     "Backend",
     "BackendError",
     "ClipResult",
+    "ComfyUIBackend",
     "DiffusersBackend",
     "Event",
     "FakeBackend",
