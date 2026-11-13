@@ -1,0 +1,123 @@
+profiles:
+  - id: wan2.1-t2v-1.3b
+    family: wan
+    variant: "2.1 T2V 1.3B"
+    params: 1.3B
+    temporal_factor: 4
+    spatial_multiple: 16
+    native_fps: 16
+    frames: {min: 5, default: 81, max: 81}
+    resolution_buckets: [832x480, 480x832]
+    pixel_budget: 399360
+    conditioning: [t2v]
+    continuity: []
+    min_vram_gb: 8
+    vram_presets:
+      - {min_gb: 24, recipe: full}
+      - {min_gb: 8, recipe: offload}
+    backends:
+      diffusers: WanPipeline
+      diffusers_repo: Wan-AI/Wan2.1-T2V-1.3B-Diffusers
+    license: apache-2.0
+    sources: [https://github.com/Wan-Video/Wan2.1]
+    notes: 720p works but is less stable than 480p.
+
+  - id: wan2.1-t2v-14b
+    base: wan2.1-t2v-1.3b
+    variant: "2.1 T2V 14B"
+    params: 14B
+    resolution_buckets: [1280x720, 720x1280, 832x480, 480x832]
+    pixel_budget: 921600
+    min_vram_gb: 24
+    vram_presets:
+      - {min_gb: 80, recipe: full}
+      - {min_gb: 40, recipe: fp8}
+      - {min_gb: 24, recipe: fp8+offload}
+    backends:
+      diffusers: WanPipeline
+      diffusers_repo: Wan-AI/Wan2.1-T2V-14B-Diffusers
+    notes: null
+
+  - id: wan2.1-i2v-14b-480p
+    base: wan2.1-t2v-14b
+    variant: "2.1 I2V 14B 480p"
+    resolution_buckets: [832x480, 480x832]
+    pixel_budget: 409600
+    conditioning: [i2v]
+    continuity: [last_frame_i2v]
+    backends:
+      diffusers: WanImageToVideoPipeline
+      diffusers_repo: Wan-AI/Wan2.1-I2V-14B-480P-Diffusers
+
+  - id: wan2.1-i2v-14b-720p
+    base: wan2.1-i2v-14b-480p
+    variant: "2.1 I2V 14B 720p"
+    resolution_buckets: [1280x720, 720x1280]
+    pixel_budget: 921600
+    backends:
+      diffusers: WanImageToVideoPipeline
+      diffusers_repo: Wan-AI/Wan2.1-I2V-14B-720P-Diffusers
+
+  - id: wan2.1-flf2v-14b-720p
+    base: wan2.1-i2v-14b-720p
+    variant: "2.1 FLF2V 14B 720p"
+    conditioning: [i2v, flf2v]
+    continuity: [keyframe_fill, last_frame_i2v]
+    backends:
+      diffusers: WanImageToVideoPipeline
+      diffusers_repo: Wan-AI/Wan2.1-FLF2V-14B-720P-diffusers
+    notes: 720p only.
+
+  - id: wan2.1-vace-14b
+    base: wan2.1-t2v-14b
+    variant: "2.1 VACE 14B"
+    conditioning: [t2v, i2v, v2v, ref]
+    continuity: [overlap_context, last_frame_i2v]
+    backends:
+      diffusers: WanVACEPipeline
+      diffusers_repo: Wan-AI/Wan2.1-VACE-14B-diffusers
+
+  - id: wan2.2-t2v-a14b
+    base: wan2.1-t2v-14b
+    variant: "2.2 T2V A14B"
+    params: 27B MoE, 14B active
+    resolution_buckets: [1280x720, 720x1280, 832x480, 480x832]
+    min_vram_gb: 24
+    backends:
+      diffusers: WanPipeline
+      diffusers_repo: Wan-AI/Wan2.2-T2V-A14B-Diffusers
+    sources: [https://github.com/Wan-Video/Wan2.2]
+
+  - id: wan2.2-i2v-a14b
+    base: wan2.2-t2v-a14b
+    variant: "2.2 I2V A14B"
+    conditioning: [i2v]
+    continuity: [last_frame_i2v]
+    backends:
+      diffusers: WanImageToVideoPipeline
+      diffusers_repo: Wan-AI/Wan2.2-I2V-A14B-Diffusers
+
+  - id: wan2.2-ti2v-5b
+    family: wan
+    variant: "2.2 TI2V 5B"
+    params: 5B
+    temporal_factor: 4
+    spatial_multiple: 32
+    native_fps: 24
+    frames: {min: 5, default: 121, max: 121}
+    resolution_buckets: [1280x704, 704x1280]
+    pixel_budget: 901120
+    conditioning: [t2v, i2v]
+    continuity: [last_frame_i2v]
+    min_vram_gb: 24
+    vram_presets:
+      - {min_gb: 48, recipe: full}
+      - {min_gb: 24, recipe: offload}
+    backends:
+      diffusers: WanPipeline
+      diffusers_repo: Wan-AI/Wan2.2-TI2V-5B-Diffusers
+    license: apache-2.0
+    sources:
+      - https://github.com/Wan-Video/Wan2.2
+      - https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B
+    notes: 16x16x4 VAE plus 2x2 patch, so sides are multiples of 32.

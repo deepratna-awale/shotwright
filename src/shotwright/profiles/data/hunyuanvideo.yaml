@@ -1,0 +1,29 @@
+profiles:
+  - id: hunyuanvideo-1.5-480p
+    family: hunyuanvideo
+    variant: "1.5 480p"
+    params: 8.3B
+    temporal_factor: 4
+    spatial_multiple: 16
+    native_fps: 24
+    frames: {min: 5, default: 121, max: 121}
+    resolution_buckets: [848x480, 480x848]
+    pixel_budget: 409600
+    conditioning: [t2v, i2v]
+    continuity: [last_frame_i2v]
+    min_vram_gb: 14
+    vram_presets:
+      - {min_gb: 24, recipe: full}
+      - {min_gb: 14, recipe: offload}
+    backends:
+      diffusers: HunyuanVideo15Pipeline
+      comfyui: native
+    license: tencent-hunyuan-community
+    sources: [https://github.com/Tencent-Hunyuan/HunyuanVideo-1.5]
+    notes: Optional step-distilled super-resolution to 720p and 1080p.
+
+  - id: hunyuanvideo-1.5-720p
+    base: hunyuanvideo-1.5-480p
+    variant: "1.5 720p"
+    resolution_buckets: [1280x720, 720x1280]
+    pixel_budget: 921600
