@@ -9,7 +9,7 @@ from . import __version__
 from .plan import PlanError, ShotList, compile_plan
 from .profiles import Conditioning, UnknownModelError, list_models
 from .review import ReviewError, contact_sheet
-from .run import ComfyUIBackend, DiffusersBackend, FakeBackend, Runner, RunResult
+from .run import ComfyUIBackend, DiffusersBackend, FakeBackend, HostedBackend, Runner, RunResult
 from .snap import snap as snap_request
 from .stitch import COLOR_MODES, METHODS, StitchError
 from .stitch import stitch as stitch_run
@@ -242,7 +242,7 @@ def voice(run_dir, output, tts_model, tts_url, fake):
         click.echo(f"  check   lines overlap: {first[:30]!r} and {second[:30]!r}")
 
 
-BACKENDS = ["fake", "diffusers", "comfyui"]
+BACKENDS = ["fake", "diffusers", "comfyui", "hosted"]
 
 
 def _backend(
@@ -258,6 +258,8 @@ def _backend(
         return DiffusersBackend(device=device, dtype=dtype)
     if name == "comfyui":
         return ComfyUIBackend(url=comfy_url, workflow_dirs=workflows)
+    if name == "hosted":
+        return HostedBackend(spec_dirs=workflows)
     raise click.ClickException(f"unknown backend {name!r}")
 
 
@@ -312,7 +314,7 @@ def _runner_options(f):
         "--workflows",
         multiple=True,
         type=click.Path(exists=True, file_okay=False),
-        help="Extra directory of ComfyUI API workflows. Repeatable.",
+        help="Extra directory of ComfyUI workflows or hosted API specs. Repeatable.",
     )(wrapper)
     wrapper = click.option(
         "--comfy-url", default="http://127.0.0.1:8188", show_default=True, help="ComfyUI server."

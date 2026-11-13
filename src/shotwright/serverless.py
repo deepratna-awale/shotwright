@@ -10,7 +10,7 @@ from typing import Any
 import yaml
 
 from .plan import PlanError, ShotList, compile_plan
-from .run import ComfyUIBackend, DiffusersBackend, FakeBackend, Runner
+from .run import ComfyUIBackend, DiffusersBackend, FakeBackend, HostedBackend, Runner
 from .stitch import stitch
 
 RUNS_DIR = os.environ.get("SHOTWRIGHT_RUNS_DIR", "/runpod-volume/shotwright/runs")
@@ -25,6 +25,8 @@ def _backend(name: str, options: dict[str, Any]):
             _backends[name] = DiffusersBackend(**options)
         elif name == "comfyui":
             _backends[name] = ComfyUIBackend(**options)
+        elif name == "hosted":
+            _backends[name] = HostedBackend(**options)
         elif name == "fake":
             _backends[name] = FakeBackend()
         else:

@@ -9,6 +9,7 @@ from .backend import (
 from .comfyui_backend import ComfyUIBackend
 from .diffusers_backend import DiffusersBackend
 from .fake import FakeBackend
+from .hosted_backend import HostedBackend
 from .rundir import RunDir, job_cache_key
 from .runner import Event, PromptHook, RunError, Runner, RunResult
 
@@ -20,6 +21,7 @@ __all__ = [
     "DiffusersBackend",
     "Event",
     "FakeBackend",
+    "HostedBackend",
     "JobInputs",
     "OutOfMemory",
     "PromptHook",
