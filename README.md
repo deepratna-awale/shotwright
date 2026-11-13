@@ -104,6 +104,10 @@ Workflows are ComfyUI API-format JSON files named `<model id>.t2v.json` and `<mo
 
 Put the files in a directory and pass `--workflows DIR`, or set `SHOTWRIGHT_WORKFLOW_PATH`. A `<model id>+<recipe>.t2v.json` file is used for that VRAM recipe, so a low-memory variant can swap in GGUF or block-swap nodes.
 
+## Run on RunPod
+
+Prebuilt images for pods (with or without ComfyUI) and a serverless worker are described in [docker/README.md](docker/README.md). Weights live on a network volume, and `shotwright download wan2.2-ti2v-5b --for comfyui` fetches exactly the files a bundled workflow loads.
+
 ## List models
 
 ```bash
