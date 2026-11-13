@@ -216,8 +216,36 @@ def _report(result: RunResult) -> None:
 
 def _runner_options(f):
     @functools.wraps(f)
-    def wrapper(*args, backend, device, dtype, comfy_url, workflows, **kwargs):
-        return f(*args, backend=_backend(backend, device, dtype, comfy_url, workflows), **kwargs)
+    def wrapper(
+        *args,
+        backend,
+        device,
+        dtype,
+        comfy_url,
+        workflows,
+        llm_continuity,
+        llm_model,
+        llm_url,
+        **kwargs,
+    ):
+        hook = None
+        if llm_continuity:
+            from .llm import LLMClient, continuation_hook
+
+            hook = continuation_hook(LLMClient(model=llm_model, base_url=llm_url))
+        return f(
+            *args,
+            backend=_backend(backend, device, dtype, comfy_url, workflows),
+            prompt_hook=hook,
+            **kwargs,
+        )
+
+    wrapper = _llm_options(wrapper)
+    wrapper = click.option(
+        "--llm-continuity",
+        is_flag=True,
+        help="Describe each chained job's starting frame with a vision LLM and adapt its prompt.",
+    )(wrapper)
 
     wrapper = click.option(
         "--workflows",
@@ -243,13 +271,13 @@ def _runner_options(f):
 @_runner_options
 @click.option("--runs-dir", default="runs", show_default=True, type=click.Path(file_okay=False))
 @click.option("--name", help="Run directory name. Defaults to project name plus a timestamp.")
-def run(shot_list, backend, vram, runs_dir, name):
+def run(shot_list, backend, prompt_hook, vram, runs_dir, name):
     """Compile SHOT_LIST and render every job into a run directory."""
     try:
         compiled = compile_plan(ShotList.from_yaml(shot_list))
     except PlanError as exc:
         raise click.ClickException(f"the shot list has problems:\n{exc}") from exc
-    runner = Runner(backend, runs_root=runs_dir, vram_gb=vram)
+    runner = Runner(backend, runs_root=runs_dir, vram_gb=vram, prompt_hook=prompt_hook)
     runner.on(
         "job_done", lambda e: click.echo(f"  done    {e.job_id} ({e.detail['seconds']:.1f} s)")
     )
@@ -259,9 +287,9 @@ def run(shot_list, backend, vram, runs_dir, name):
 @main.command()
 @click.argument("run_dir", type=click.Path(exists=True, file_okay=False))
 @_runner_options
-def resume(run_dir, backend, vram):
+def resume(run_dir, backend, prompt_hook, vram):
     """Continue RUN_DIR, rendering only jobs that are missing or out of date."""
-    runner = Runner(backend, vram_gb=vram)
+    runner = Runner(backend, vram_gb=vram, prompt_hook=prompt_hook)
     runner.on(
         "job_done", lambda e: click.echo(f"  done    {e.job_id} ({e.detail['seconds']:.1f} s)")
     )
@@ -273,9 +301,9 @@ def resume(run_dir, backend, vram):
 @click.argument("job_id")
 @click.option("--seed", type=int, help="New seed. Defaults to the current seed plus one.")
 @_runner_options
-def rerun(run_dir, job_id, seed, backend, vram):
+def rerun(run_dir, job_id, seed, backend, prompt_hook, vram):
     """Re-render JOB_ID in RUN_DIR with a new seed, plus every job chained from it."""
-    runner = Runner(backend, vram_gb=vram)
+    runner = Runner(backend, vram_gb=vram, prompt_hook=prompt_hook)
     try:
         _report(runner.rerun(run_dir, job_id, seed=seed))
     except KeyError as exc:

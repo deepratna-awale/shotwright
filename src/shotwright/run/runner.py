@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import time
 from collections import defaultdict
 from collections.abc import Callable
@@ -39,6 +41,8 @@ class Event:
 
 
 Listener = Callable[[Event], None]
+PromptHook = Callable[[Job, JobInputs], str]
+PROMPT_FILE = "prompt.json"
 
 
 class Runner:
@@ -49,12 +53,14 @@ class Runner:
         registry: Registry | None = None,
         vram_gb: float | None = None,
         transient_retries: int = 2,
+        prompt_hook: PromptHook | None = None,
     ):
         self.backend = backend
         self.runs_root = Path(runs_root)
         self.registry = registry or default_registry()
         self.vram_gb = vram_gb
         self.transient_retries = transient_retries
+        self.prompt_hook = prompt_hook
         self._listeners: dict[str, list[Listener]] = defaultdict(list)
         self._preset: dict[str, VramPreset | None] = {}
 
@@ -171,6 +177,7 @@ class Runner:
 
             try:
                 inputs, input_hash = self._inputs(run, job)
+                job = self._adapt_prompt(run, job, inputs, input_hash)
                 key = job_cache_key(job, input_hash)
                 if self._is_done(run, job, key):
                     result.cached.append(job.id)
@@ -195,6 +202,32 @@ class Runner:
         )
         self._emit("run_finished", ok=result.ok)
         return result
+
+    def _adapt_prompt(
+        self, run: RunDir, job: Job, inputs: JobInputs, input_hash: str | None
+    ) -> Job:
+        """Let the prompt hook rewrite a chained job's prompt from its starting frame.
+
+        The rewrite is stored per job and keyed by the planned prompt and the input
+        frame, so a resume reuses it instead of calling the hook again.
+        """
+        if self.prompt_hook is None or job.depends_on is None or inputs.init_image is None:
+            return job
+        source = hashlib.sha256(f"{job.prompt}\0{input_hash}".encode()).hexdigest()
+        path = run.job_dir(job.id) / PROMPT_FILE
+        if path.is_file():
+            stored = json.loads(path.read_text(encoding="utf-8"))
+            if stored.get("source") == source:
+                return job.model_copy(update={"prompt": stored["prompt"]})
+        prompt = self.prompt_hook(job, inputs).strip()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps({"source": source, "planned": job.prompt, "prompt": prompt}, indent=2)
+            + "\n",
+            encoding="utf-8",
+        )
+        run.log("prompt_adapted", job.id)
+        return job.model_copy(update={"prompt": prompt})
 
     def _run_job(self, run: RunDir, job: Job, inputs: JobInputs, key: str) -> float:
         profile = self.registry.get(job.model)

@@ -2,6 +2,7 @@ from .client import LLMClient, LLMError, parse_json
 from .writer import (
     StoryBible,
     build_bible,
+    continuation_hook,
     continue_prompt,
     describe_frame,
     family_guide,
@@ -14,6 +15,7 @@ __all__ = [
     "LLMError",
     "StoryBible",
     "build_bible",
+    "continuation_hook",
     "continue_prompt",
     "describe_frame",
     "family_guide",

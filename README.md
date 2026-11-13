@@ -82,6 +82,8 @@ shotwright enhance shots.yaml                # writes shots.bible.yaml and shots
 
 Each shot keeps its original text as `brief`, so editing the bible and running `enhance --bible shots.bible.yaml` again starts from the briefs. Replies are cached in `.shotwright-cache/`, so repeated runs don't re-bill identical calls.
 
+At render time, `--llm-continuity` on `run`, `resume` or `rerun` asks a vision model to describe the frame each chained job starts from, and rewrites that job's prompt so it opens on exactly what's in the frame. The rewritten prompt is stored next to the clip and reused on resume.
+
 ## Render through ComfyUI
 
 Point shotwright at a running ComfyUI server and it queues one workflow per job, uploading the init frame for chained shots:

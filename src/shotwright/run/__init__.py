@@ -10,7 +10,7 @@ from .comfyui_backend import ComfyUIBackend
 from .diffusers_backend import DiffusersBackend
 from .fake import FakeBackend
 from .rundir import RunDir, job_cache_key
-from .runner import Event, RunError, Runner, RunResult
+from .runner import Event, PromptHook, RunError, Runner, RunResult
 
 __all__ = [
     "Backend",
@@ -22,6 +22,7 @@ __all__ = [
     "FakeBackend",
     "JobInputs",
     "OutOfMemory",
+    "PromptHook",
     "RunDir",
     "RunError",
     "RunResult",

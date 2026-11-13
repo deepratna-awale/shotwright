@@ -188,3 +188,13 @@ def continue_prompt(prompt: str, description: str, client: LLMClient) -> str:
     if not isinstance(rewritten, str) or not rewritten.strip():
         raise LLMError("no continuation prompt returned")
     return rewritten.strip()
+
+
+def continuation_hook(client: LLMClient):
+    """A Runner prompt hook that rewrites chained prompts to match their starting frame."""
+
+    def hook(job, inputs) -> str:
+        description = describe_frame(inputs.init_image, client)
+        return continue_prompt(job.prompt, description, client)
+
+    return hook
