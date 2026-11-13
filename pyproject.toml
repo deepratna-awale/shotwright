@@ -34,6 +34,14 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6"]
+diffusers = [
+    "torch>=2.4",
+    "diffusers>=0.36",
+    "transformers>=4.48",
+    "accelerate>=1.0",
+    "sentencepiece",
+    "ftfy",
+]
 
 [project.scripts]
 shotwright = "shotwright.cli:main"

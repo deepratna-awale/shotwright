@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import json
 
 import click
@@ -7,7 +8,7 @@ import click
 from . import __version__
 from .plan import PlanError, ShotList, compile_plan
 from .profiles import Conditioning, UnknownModelError, list_models
-from .run import FakeBackend, Runner, RunResult
+from .run import DiffusersBackend, FakeBackend, Runner, RunResult
 from .snap import snap as snap_request
 from .stitch import METHODS, StitchError
 from .stitch import stitch as stitch_run
@@ -128,12 +129,14 @@ def plan(shot_list, as_json, output):
     click.echo(compiled.to_json() if as_json else compiled.summary())
 
 
-BACKENDS = ["fake"]
+BACKENDS = ["fake", "diffusers"]
 
 
-def _backend(name: str):
+def _backend(name: str, device: str = "cuda", dtype: str = "bfloat16"):
     if name == "fake":
         return FakeBackend()
+    if name == "diffusers":
+        return DiffusersBackend(device=device, dtype=dtype)
     raise click.ClickException(f"unknown backend {name!r}")
 
 
@@ -152,9 +155,18 @@ def _report(result: RunResult) -> None:
 
 
 def _runner_options(f):
-    f = click.option("--backend", type=click.Choice(BACKENDS), default="fake", show_default=True)(f)
-    f = click.option("--vram", type=float, help="GPU memory in GB, used to pick presets.")(f)
-    return f
+    @functools.wraps(f)
+    def wrapper(*args, backend, device, dtype, **kwargs):
+        return f(*args, backend=_backend(backend, device, dtype), **kwargs)
+
+    wrapper = click.option("--dtype", default="bfloat16", show_default=True)(wrapper)
+    wrapper = click.option("--device", default="cuda", show_default=True)(wrapper)
+    wrapper = click.option(
+        "--backend", type=click.Choice(BACKENDS), default="fake", show_default=True
+    )(wrapper)
+    return click.option("--vram", type=float, help="GPU memory in GB, used to pick presets.")(
+        wrapper
+    )
 
 
 @main.command()
@@ -168,7 +180,7 @@ def run(shot_list, backend, vram, runs_dir, name):
         compiled = compile_plan(ShotList.from_yaml(shot_list))
     except PlanError as exc:
         raise click.ClickException(f"the shot list has problems:\n{exc}") from exc
-    runner = Runner(_backend(backend), runs_root=runs_dir, vram_gb=vram)
+    runner = Runner(backend, runs_root=runs_dir, vram_gb=vram)
     runner.on(
         "job_done", lambda e: click.echo(f"  done    {e.job_id} ({e.detail['seconds']:.1f} s)")
     )
@@ -180,7 +192,7 @@ def run(shot_list, backend, vram, runs_dir, name):
 @_runner_options
 def resume(run_dir, backend, vram):
     """Continue RUN_DIR, rendering only jobs that are missing or out of date."""
-    runner = Runner(_backend(backend), vram_gb=vram)
+    runner = Runner(backend, vram_gb=vram)
     runner.on(
         "job_done", lambda e: click.echo(f"  done    {e.job_id} ({e.detail['seconds']:.1f} s)")
     )
@@ -194,7 +206,7 @@ def resume(run_dir, backend, vram):
 @_runner_options
 def rerun(run_dir, job_id, seed, backend, vram):
     """Re-render JOB_ID in RUN_DIR with a new seed, plus every job chained from it."""
-    runner = Runner(_backend(backend), vram_gb=vram)
+    runner = Runner(backend, vram_gb=vram)
     try:
         _report(runner.rerun(run_dir, job_id, seed=seed))
     except KeyError as exc:

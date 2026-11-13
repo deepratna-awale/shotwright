@@ -116,6 +116,7 @@ profiles:
     backends:
       diffusers: WanPipeline
       diffusers_repo: Wan-AI/Wan2.2-TI2V-5B-Diffusers
+      diffusers_i2v: WanImageToVideoPipeline
     license: apache-2.0
     sources:
       - https://github.com/Wan-Video/Wan2.2

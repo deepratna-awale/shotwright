@@ -108,6 +108,10 @@ def compile_plan(
             init_image = spec.resolve_path(shot.init_image)
             if check_files and not Path(init_image).is_file():
                 problems.append(f"shot {shot.id!r}: init_image not found: {init_image}")
+        elif not continuous and not profile.supports(Conditioning.T2V):
+            problems.append(
+                f"shot {shot.id!r} starts from nothing but {profile.id} needs an init_image"
+            )
 
         resize = result.postprocess.resize_to
         crop = result.postprocess.crop

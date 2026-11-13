@@ -17,6 +17,9 @@ profiles:
       - {min_gb: 14, recipe: offload}
     backends:
       diffusers: HunyuanVideo15Pipeline
+      diffusers_repo: hunyuanvideo-community/HunyuanVideo-1.5-480p_t2v
+      diffusers_i2v: HunyuanVideo15ImageToVideoPipeline
+      diffusers_repo_i2v: hunyuanvideo-community/HunyuanVideo-1.5-480p_i2v
       comfyui: native
     license: tencent-hunyuan-community
     sources: [https://github.com/Tencent-Hunyuan/HunyuanVideo-1.5]
@@ -27,3 +30,6 @@ profiles:
     variant: "1.5 720p"
     resolution_buckets: [1280x720, 720x1280]
     pixel_budget: 921600
+    backends:
+      diffusers_repo: hunyuanvideo-community/HunyuanVideo-1.5-720p_t2v
+      diffusers_repo_i2v: hunyuanvideo-community/HunyuanVideo-1.5-720p_i2v
