@@ -258,6 +258,11 @@ class ComfyUIBackend:
         profile = self._profile
         if profile is None:
             raise BackendError("prepare() must be called before run()")
+        if inputs.context_frames is not None:
+            raise BackendError(
+                "the ComfyUI backend does not support overlap context yet; "
+                "set continuity.overlap to 0"
+            )
         if inputs.end_image is not None:
             mode = "flf2v"
         elif inputs.init_image is not None:

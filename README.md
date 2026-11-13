@@ -36,6 +36,10 @@ shots:
   - {id: board, prompt: "...", duration: 5, transition: continuous, end_image: keys/cabin.png}
 ```
 
+### Overlap context
+
+On VACE models, set `continuity: {overlap: 8}` and each chained job is conditioned on the last 8 frames of the clip before it instead of a single frame. This carries the motion across the seam. Models without VACE keep chaining from the last frame.
+
 The stitcher drops the duplicated frame at each chained seam, resizes and crops to the output size, converts frame rates, and corrects colour drift across chains. `--color seam` matches each clip to the one before it. `--color anchor` also pulls long chains back toward the look of their first shot.
 
 ## Snap a request to legal values

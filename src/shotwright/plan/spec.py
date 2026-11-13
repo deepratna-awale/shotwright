@@ -42,6 +42,7 @@ class ContinuitySettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     max_hops: int = Field(default=6, ge=1)
+    overlap: int = Field(default=0, ge=0)
 
 
 class ShotSpec(BaseModel):

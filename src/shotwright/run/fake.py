@@ -72,6 +72,15 @@ class FakeBackend:
         for i in range(job.frames):
             t = i / max(job.frames - 1, 1)
             frames[i] = np.clip(start * (1 - t) + end * t, 0, 255).astype(np.uint8)
+        context = inputs.context_frames
+        if context is not None:
+            k = min(len(context), job.frames)
+            frames[:k] = context[:k]
+            last = context[k - 1].astype(np.float32)
+            rest = job.frames - k
+            for j in range(rest):
+                t = (j + 1) / rest
+                frames[k + j] = np.clip(last * (1 - t) + end * t, 0, 255).astype(np.uint8)
         sound = None
         if self.audio:
             rate = 16000

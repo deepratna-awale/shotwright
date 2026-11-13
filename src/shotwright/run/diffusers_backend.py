@@ -163,7 +163,18 @@ class DiffusersBackend:
             "generator": generator,
             "output_type": "np",
         }
-        if inputs.init_image is not None:
+        if inputs.context_frames is not None:
+            k = len(inputs.context_frames)
+            blank = np.full_like(inputs.context_frames[0], 127)
+            known = np.zeros_like(inputs.context_frames[0])
+            unknown = np.full_like(inputs.context_frames[0], 255)
+            wanted["video"] = [Image.fromarray(f) for f in inputs.context_frames] + [
+                Image.fromarray(blank)
+            ] * (job.frames - k)
+            wanted["mask"] = [Image.fromarray(known)] * k + [Image.fromarray(unknown)] * (
+                job.frames - k
+            )
+        elif inputs.init_image is not None:
             wanted["image"] = Image.fromarray(inputs.init_image)
         if inputs.end_image is not None:
             wanted["last_image"] = Image.fromarray(inputs.end_image)
@@ -176,8 +187,14 @@ class DiffusersBackend:
         return {k: v for k, v in wanted.items() if v is not None and (accepts_any or k in params)}
 
     def run(self, job: Job, inputs: JobInputs) -> ClipResult:
-        pipe = self._pipe(image_to_video=inputs.init_image is not None)
+        overlap = inputs.context_frames is not None
+        pipe = self._pipe(image_to_video=inputs.init_image is not None and not overlap)
         kwargs = self._kwargs(pipe, job, inputs)
+        if overlap and not {"video", "mask"} <= kwargs.keys():
+            raise BackendError(
+                f"{type(pipe).__name__} cannot take context frames; use a VACE model "
+                "or set continuity.overlap to 0"
+            )
         if inputs.end_image is not None and "last_image" not in kwargs:
             raise BackendError(f"{type(pipe).__name__} cannot take an end image")
         oom_types = tuple(
