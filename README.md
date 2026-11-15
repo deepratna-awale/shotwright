@@ -69,10 +69,12 @@ shotwright run shots.yaml --backend diffusers --refiner diffusers
 
 | Refiner | Pipeline | Default strength, steps, guidance |
 | --- | --- | --- |
-| `z-image-turbo` | ZImageImg2ImgPipeline | 0.35, 12, 0 |
+| `z-image-turbo` | ZImageImg2ImgPipeline | 0.2, 12, 0 |
 | `animagine-xl-4.0` | StableDiffusionXLImg2ImgPipeline | 0.35, 28, 5 |
 | `flux.1-dev` | FluxImg2ImgPipeline | 0.4, 28, 3.5 |
 | `qwen-image` | QwenImageImg2ImgPipeline | 0.35, 40, 4 |
+
+Flow-matching refiners (Z-Image, FLUX, Qwen-Image) shift their noise schedule toward high noise, so a given strength repaints far more than it would on SDXL. Z-Image-Turbo at 0.35 already swaps objects (a stone wall became a wooden fence in testing), while 0.2 keeps the layout and still sharpens texture. Write `end_prompt` to describe the frame the clip actually ends on: a prompt that describes where the action was meant to end pulls the refined frame away from the clip and widens the seam.
 
 The stitcher drops the duplicated frame at each chained seam, resizes and crops to the output size, converts frame rates, and corrects colour drift across chains. `--color seam` matches each clip to the one before it. `--color anchor` also pulls long chains back toward the look of their first shot.
 
