@@ -44,6 +44,8 @@ def tiny_spec(shots, **extra) -> ShotList:
         "shots": shots,
     }
     data.update(extra)
+    data.setdefault("continuity", {})
+    data["continuity"] = {"handoff_window": 1, **data["continuity"]}
     return ShotList.from_dict(data, base_dir=Path.cwd())
 
 

@@ -308,9 +308,7 @@ def compile_plan(
                 start_text = parent_job.end_prompt or (
                     init.refine.prompt if init.refine is not None else None
                 )
-            mode, adapted = _job_prompt(
-                profile, spec, shot, index, init is not None, start_text
-            )
+            mode, adapted = _job_prompt(profile, spec, shot, index, init is not None, start_text)
             end_prompt, end_tags = _end_of_segment(shot, index, count)
             jobs.append(
                 Job(

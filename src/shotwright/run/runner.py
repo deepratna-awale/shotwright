@@ -232,8 +232,7 @@ class Runner:
             handoff.update(refined=True, model=spec.model, prompt=spec.prompt)
             run.log("refined", job.id, parent=parent, model=spec.model, drop_last=offset)
         meta_path.write_text(
-            json.dumps({"source": source, "refine": settings, "handoff": handoff}, indent=2)
-            + "\n",
+            json.dumps({"source": source, "refine": settings, "handoff": handoff}, indent=2) + "\n",
             encoding="utf-8",
         )
         return start, handoff

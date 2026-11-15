@@ -176,7 +176,7 @@ class FakeRefiner:
 
     def refine(self, frame: np.ndarray, spec: FrameRefine) -> np.ndarray:
         self.calls.append(spec)
-        shifted = frame.astype(np.int16) + int(round(20 * spec.strength))
+        shifted = frame.astype(np.int16) + int(round(20 * (spec.strength or 0.35)))
         return np.clip(shifted, 0, 255).astype(np.uint8)
 
     def release(self) -> None:

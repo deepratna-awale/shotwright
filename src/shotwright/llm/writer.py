@@ -218,6 +218,8 @@ def refine_describer(client: LLMClient):
     from ..refine import refiner_model
 
     def describe(frame, spec) -> str:
-        return describe_for_refine(frame, spec.prompt, refiner_model(spec.model).prompt_style, client)
+        return describe_for_refine(
+            frame, spec.prompt, refiner_model(spec.model).prompt_style, client
+        )
 
     return describe
