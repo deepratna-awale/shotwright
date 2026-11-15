@@ -205,3 +205,13 @@ def test_fit_tokens_cuts_words_of_single_long_sentence():
     f = fit_tokens("one two three four five six seven eight. nine.", 5, ratio=1.0)
     assert f.text == "one two three four five"
     assert f.dropped.startswith("six")
+
+
+def test_wan_anime_look_drops_style_terms_from_negative():
+    from shotwright.profiles import get_profile
+
+    profile = get_profile("wan2.2-ti2v-5b")
+    real = adapt_prompt(profile, mode="t2v", prompt="A girl on a roof.")
+    anime = adapt_prompt(profile, mode="t2v", prompt="A girl on a roof.", look=Look.ANIME)
+    assert "画作" in real.negative
+    assert "画作" not in anime.negative and "风格" not in anime.negative

@@ -205,7 +205,10 @@ def adapt_prompt(
         if _clean(negative):
             notes.append(f"negative prompt ignored: {profile.id} does not use one")
     else:
-        neg = negative if negative is not None else rules.negative
+        default = (
+            rules.anime_negative if look == Look.ANIME and rules.anime_negative else rules.negative
+        )
+        neg = negative if negative is not None else default
 
     return AdaptedPrompt(
         text=fitted.text,
