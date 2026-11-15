@@ -10,7 +10,7 @@ profiles:
     resolution_buckets: []
     pixel_budget: 2088960
     conditioning: [t2v, i2v, v2v, audio]
-    continuity: [native_extension, last_frame_i2v]
+    continuity: [native_extension, overlap_context, last_frame_i2v]
     audio: ambient
     min_vram_gb: 24
     vram_presets:
@@ -20,6 +20,7 @@ profiles:
     backends:
       diffusers: LTX2Pipeline
       diffusers_i2v: LTX2ImageToVideoPipeline
+      diffusers_condition: LTX2ConditionPipeline
       diffusers_repo: Lightricks/LTX-2
       comfyui: ComfyUI-LTXVideo
     prompt:

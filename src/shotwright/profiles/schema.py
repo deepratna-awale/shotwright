@@ -117,6 +117,7 @@ class Backends(BaseModel):
     diffusers_repo: str | None = None
     diffusers_i2v: str | None = None
     diffusers_repo_i2v: str | None = None
+    diffusers_condition: str | None = None
     comfyui: str | None = None
     comfyui_files: list[ComfyFile] = Field(default_factory=list)
     hosted: str | None = None
