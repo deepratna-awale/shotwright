@@ -36,7 +36,9 @@ def _tokenizer(name: str):
         return None
 
 
-def count_tokens(text: str, tokenizer: str | None = None, ratio: float = DEFAULT_RATIO) -> tuple[int, bool]:
+def count_tokens(
+    text: str, tokenizer: str | None = None, ratio: float = DEFAULT_RATIO
+) -> tuple[int, bool]:
     """Token count of `text` and whether it is exact.
 
     With a tokenizer that is already on disk the count is exact; otherwise it is
