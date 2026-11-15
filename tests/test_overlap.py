@@ -141,3 +141,61 @@ def test_other_backends_refuse_context(cls, vace_registry, tmp_path):
     context = np.zeros((4, job.height, job.width, 3), dtype=np.uint8)
     with pytest.raises(BackendError, match="overlap"):
         b.run(job, JobInputs(init_image=context[-1], context_frames=context))
+
+
+def test_overlap_segments_keep_the_full_description(vace_registry):
+    shots = [
+        {
+            "id": "walk",
+            "duration": 4,
+            "parts": {"subject": "A keeper in a yellow coat", "setting": "A cliff path"},
+            "beats": ["He walks to the door.", "He opens the door."],
+        }
+    ]
+    spec = tiny_spec(shots, defaults={"model": "tiny-vace", "seed": 3}, continuity={"overlap": 4})
+    jobs = compile_plan(spec, registry=vace_registry).jobs
+    assert jobs[1].init.kind == InitKind.OVERLAP
+    assert "yellow coat" in jobs[1].prompt and "cliff path" in jobs[1].prompt
+    assert "opens the door" in jobs[1].prompt
+
+
+class StubVideoCondition:
+    def __init__(self, frames, index=0, strength=1.0):
+        self.frames, self.index = frames, index
+
+
+def test_diffusers_passes_context_as_frame_conditions(vace_registry):
+    from tests.test_diffusers_backend import StubPipeline, backend
+
+    class ConditionPipeline(StubPipeline):
+        def __call__(self, conditions, prompt, num_frames, height, width, generator, output_type):
+            out = super().__call__(prompt, num_frames, height, width, generator, output_type)
+            self.calls[-1]["conditions"] = [(len(c.frames), c.index) for c in conditions]
+            return out
+
+    loaded = []
+
+    def loader(class_name, repo, dtype):
+        cls = ConditionPipeline if class_name == "ConditionPipeline" else StubPipeline
+        loaded.append(cls(repo, dtype))
+        return loaded[-1]
+
+    profile = vace_registry.get("tiny-vace")
+    prof = profile.model_copy(
+        update={
+            "backends": profile.backends.model_copy(
+                update={
+                    "diffusers": "StubPipeline",
+                    "diffusers_repo": "t/l",
+                    "diffusers_condition": "ConditionPipeline",
+                }
+            )
+        }
+    )
+    job = plan(vace_registry).job("b")
+    context = np.zeros((4, job.height, job.width, 3), dtype=np.uint8)
+    b = backend(loader)
+    b.prepare(prof, None)
+    b.run(job, JobInputs(init_image=context[-1], context_frames=context))
+    assert isinstance(loaded[-1], ConditionPipeline)
+    assert loaded[-1].calls[0]["conditions"] == [(4, 0)]

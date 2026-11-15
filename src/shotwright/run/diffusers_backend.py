@@ -125,14 +125,16 @@ class DiffusersBackend:
             pipe.to(self.device)
         return pipe
 
-    def _pipe(self, image_to_video: bool) -> Any:
+    def _pipe(self, image_to_video: bool, context: bool = False) -> Any:
         profile = self._profile
         if profile is None:
             raise BackendError("prepare() must be called before run()")
         backends = profile.backends
         base_class = backends.diffusers
         base_is_i2v = is_image_to_video(base_class)
-        if image_to_video and not base_is_i2v:
+        if context and backends.diffusers_condition:
+            key, class_name = "condition", backends.diffusers_condition
+        elif image_to_video and not base_is_i2v:
             if not backends.diffusers_i2v:
                 raise BackendError(f"{profile.id} has no image-to-video pipeline for diffusers")
             key, class_name = "i2v", backends.diffusers_i2v
@@ -145,7 +147,14 @@ class DiffusersBackend:
             return self._pipes[key]
 
         repo = self.repos.get(profile.id) or backends.diffusers_repo
-        if key == "i2v":
+        if key == "condition" and self._loader is not None:
+            self._drop_pipes()
+            pipe = self._apply_recipe(self._load(class_name, repo))
+        elif key == "condition":
+            base = self._pipe(image_to_video=False)
+            cls = getattr(importlib.import_module("diffusers"), class_name)
+            pipe = self._place(cls.from_pipe(base, torch_dtype=self._dtype()))
+        elif key == "i2v":
             i2v_repo = self.repos.get(f"{profile.id}:i2v") or backends.diffusers_repo_i2v
             if i2v_repo or self._loader is not None:
                 self._drop_pipes()
@@ -173,7 +182,12 @@ class DiffusersBackend:
             "generator": generator,
             "output_type": "np",
         }
-        if inputs.context_frames is not None:
+        condition = _condition_class(pipe) if inputs.context_frames is not None else None
+        if condition is not None:
+            wanted["conditions"] = [
+                condition(frames=[Image.fromarray(f) for f in inputs.context_frames], index=0)
+            ]
+        elif inputs.context_frames is not None:
             k = len(inputs.context_frames)
             blank = np.full_like(inputs.context_frames[0], 127)
             known = np.zeros_like(inputs.context_frames[0])
@@ -198,9 +212,11 @@ class DiffusersBackend:
 
     def run(self, job: Job, inputs: JobInputs) -> ClipResult:
         overlap = inputs.context_frames is not None
-        pipe = self._pipe(image_to_video=inputs.init_image is not None and not overlap)
+        pipe = self._pipe(
+            image_to_video=inputs.init_image is not None and not overlap, context=overlap
+        )
         kwargs = self._kwargs(pipe, job, inputs)
-        if overlap and not {"video", "mask"} <= kwargs.keys():
+        if overlap and "conditions" not in kwargs and not {"video", "mask"} <= kwargs.keys():
             raise BackendError(
                 f"{type(pipe).__name__} cannot take context frames; use a VACE model "
                 "or set continuity.overlap to 0"
@@ -238,6 +254,20 @@ class DiffusersBackend:
         if frames.shape[0] != job.frames:
             meta["frames_returned"] = int(frames.shape[0])
         return ClipResult(frames=frames, fps=job.fps, meta=meta, audio=audio, audio_rate=rate)
+
+
+def _condition_class(pipe: Any) -> Any:
+    """The frame-condition class of a pipeline that takes `conditions` (e.g. LTX2VideoCondition)."""
+    try:
+        if "conditions" not in inspect.signature(pipe.__call__).parameters:
+            return None
+    except (TypeError, ValueError):
+        return None
+    module = importlib.import_module(type(pipe).__module__)
+    for name in dir(module):
+        if name.endswith("VideoCondition"):
+            return getattr(module, name)
+    return None
 
 
 def to_uint8_frames(video: Any) -> np.ndarray:
