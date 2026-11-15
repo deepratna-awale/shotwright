@@ -97,6 +97,7 @@ class PromptRules(BaseModel):
     i2v_words: tuple[int, int] = (20, 100)
     i2v: I2VPrompt = I2VPrompt.MOTION
     negative: str | None = None
+    anime_negative: str | None = None
     uses_negative: bool = True
 
 
