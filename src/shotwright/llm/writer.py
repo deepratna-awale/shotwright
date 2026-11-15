@@ -198,3 +198,28 @@ def continuation_hook(client: LLMClient):
         return continue_prompt(job.prompt, description, client)
 
     return hook
+
+
+def describe_for_refine(image: np.ndarray, planned: str, style: str, client: LLMClient) -> str:
+    """A still-image prompt for `image` in the refiner's style ("natural" or "tags")."""
+    system = load_template("frame_prompt").replace("{style}", style)
+    data = client.chat_json(
+        system,
+        [{"type": "text", "text": f"Planned prompt:\n{planned}"}, image_part(image)],
+    )
+    prompt = data.get("prompt") if isinstance(data, dict) else None
+    if not isinstance(prompt, str) or not prompt.strip():
+        raise LLMError("no frame prompt returned")
+    return prompt.strip()
+
+
+def refine_describer(client: LLMClient):
+    """A Runner frame describer that writes each refined frame's prompt with a vision LLM."""
+    from ..refine import refiner_model
+
+    def describe(frame, spec) -> str:
+        return describe_for_refine(
+            frame, spec.prompt, refiner_model(spec.model).prompt_style, client
+        )
+
+    return describe

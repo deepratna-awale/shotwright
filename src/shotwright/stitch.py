@@ -113,11 +113,19 @@ def stitch(
     previous: tuple[str, np.ndarray] | None = None
     root: LabStats | None = None
 
+    drop_last: dict[str, int] = {}
+    for job in plan.jobs:
+        handoff = (run.read_meta(job.id) or {}).get("handoff") or {}
+        if job.depends_on and handoff.get("drop_last"):
+            drop_last[job.depends_on] = int(handoff["drop_last"])
+
     with VideoWriter(out_path, plan.output_width, plan.output_height, out_fps, crf) as writer:
         start = 0.0
         k = 0
         for job in plan.jobs:
             frames, _ = read_video(run.clip_path(job.id))
+            if drop_last.get(job.id):
+                frames = frames[: max(len(frames) - drop_last[job.id], 1)]
             frames = np.stack([resize_crop(f, job.resize_to, job.crop) for f in frames])
             if frames.shape[1:3] != (plan.output_height, plan.output_width):
                 raise StitchError(

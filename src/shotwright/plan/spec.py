@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class Transition(str, Enum):
@@ -38,18 +38,70 @@ class Line(BaseModel):
     at: float = Field(default=0.0, ge=0)
 
 
+class Look(str, Enum):
+    REALISTIC = "realistic"
+    ANIME = "anime"
+
+
+class PromptParts(BaseModel):
+    """A prompt split into the pieces every model's official guide orders differently."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    subject: str | None = None
+    action: str | None = None
+    setting: str | None = None
+    lighting: str | None = None
+    camera: str | None = None
+    style: str | None = None
+    audio: str | None = None
+
+    def is_empty(self) -> bool:
+        return not any(self.model_dump().values())
+
+
+class Beat(BaseModel):
+    """What happens in one segment of a long shot, and what its last frame shows."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    action: str
+    end: str | None = None
+    end_tags: str | None = None
+
+
+class RefineSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    model: str | None = None
+    strength: float | None = Field(default=None, gt=0, lt=1)
+    steps: int | None = Field(default=None, gt=0)
+    guidance: float | None = Field(default=None, ge=0)
+    color_match: float = Field(default=1.0, ge=0, le=1)
+
+
 class ContinuitySettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     max_hops: int = Field(default=6, ge=1)
     overlap: int = Field(default=0, ge=0)
+    segment_frames: int | None = Field(default=None, gt=0)
+    handoff_skip: int | None = Field(default=None, ge=0)
+    handoff_window: int = Field(default=4, ge=1)
+    refine: RefineSettings = Field(default_factory=RefineSettings)
 
 
 class ShotSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
-    prompt: str
+    prompt: str = ""
+    parts: PromptParts | None = None
+    beats: list[Beat] = Field(default_factory=list)
+    end_prompt: str | None = None
+    end_tags: str | None = None
+    refine: bool | None = None
     brief: str | None = None
     duration: float | None = Field(default=None, gt=0)
     frames: int | None = Field(default=None, gt=0)
@@ -62,11 +114,23 @@ class ShotSpec(BaseModel):
     params: dict[str, Any] = Field(default_factory=dict)
     lines: list[Line] = Field(default_factory=list)
 
+    @field_validator("beats", mode="before")
+    @classmethod
+    def _beats(cls, value):
+        return [{"action": b} if isinstance(b, str) else b for b in value or []]
+
     @model_validator(mode="after")
     def _length(self) -> ShotSpec:
         if self.duration is not None and self.frames is not None:
             raise ValueError(f"shot {self.id}: give duration or frames, not both")
+        if not self.prompt.strip() and (self.parts is None or self.parts.is_empty()):
+            raise ValueError(f"shot {self.id}: give a prompt or prompt parts")
         return self
+
+    def beat(self, segment: int) -> Beat | None:
+        if not self.beats:
+            return None
+        return self.beats[min(segment, len(self.beats) - 1)]
 
 
 class ShotList(BaseModel):
@@ -76,6 +140,7 @@ class ShotList(BaseModel):
     output: OutputSpec
     defaults: Defaults = Field(default_factory=Defaults)
     style: str | None = None
+    look: Look = Look.REALISTIC
     continuity: ContinuitySettings = Field(default_factory=ContinuitySettings)
     voices: dict[str, str] = Field(default_factory=dict)
     shots: list[ShotSpec] = Field(min_length=1)

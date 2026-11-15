@@ -16,12 +16,30 @@ class InitKind(str, Enum):
     OVERLAP = "overlap"
 
 
+class FrameRefine(BaseModel):
+    """How a chained job's starting frame is re-rendered with an image model first."""
+
+    model: str
+    prompt: str
+    tags: str | None = None
+    negative: str | None = None
+    strength: float | None = None
+    steps: int | None = None
+    guidance: float | None = None
+    seed: int = 0
+    color_match: float = 1.0
+    prompt_source: str = "plan"
+
+
 class JobInit(BaseModel):
     kind: InitKind
     path: str | None = None
     job: str | None = None
     strategy: Continuity | None = None
     frames: int = 1
+    skip: int = 0
+    window: int = 1
+    refine: FrameRefine | None = None
 
 
 class Job(BaseModel):
@@ -40,6 +58,10 @@ class Job(BaseModel):
     init: JobInit | None = None
     end_image: str | None = None
     params: dict[str, Any] = Field(default_factory=dict)
+    end_prompt: str | None = None
+    end_tags: str | None = None
+    prompt_tokens: int | None = None
+    prompt_notes: list[str] = Field(default_factory=list)
     resize_to: tuple[int, int] | None = None
     crop: tuple[int, int, int, int] | None = None
 
@@ -115,10 +137,13 @@ class Plan(BaseModel):
         width = max(len(j.id) for j in self.jobs)
         for job in self.jobs:
             link = f"<- {job.init.job}" if job.depends_on else ("init image" if job.init else "cut")
+            refine = job.init.refine if job.init is not None else None
             lines.append(
                 f"  {job.id.ljust(width)}  {job.model}  {job.frames}f @ {job.fps:g}  "
                 f"{job.width}x{job.height}  seed {job.seed}  {link}"
+                + (f"  refine {refine.model}" if refine else "")
             )
+            lines += [f"  {' ' * width}  note: {note}" for note in job.prompt_notes]
         seconds = sum((j.frames - j.shared_frames) / j.fps for j in self.jobs)
         lines.append("")
         lines.append(f"duration  about {seconds:.1f} s before resampling")

@@ -40,6 +40,40 @@ shots:
 
 On VACE models, set `continuity: {overlap: 8}` and each chained job is conditioned on the last 8 frames of the clip before it instead of a single frame. This carries the motion across the seam. Models without VACE keep chaining from the last frame.
 
+### Segment length and the hand-off frame
+
+Long shots are split at each model's trained length (81 frames for Wan 2.1 and 2.2 A14B, 121 for Wan 2.2 5B, HunyuanVideo 1.5 and LTX), not at its hard maximum, because quality and coherence drop past it. Set `continuity.segment_frames` to change that. A chained segment starts from the sharpest of the last few frames before the final latent group, since a clip's very last frames are its softest; the stitcher drops the parent's frames after that point.
+
+Give each segment of a long shot its own action with `beats`, so a split shot keeps moving instead of repeating itself:
+
+```yaml
+- id: deck
+  duration: 10
+  prompt: A fishing boat in a misty harbour at dawn.
+  beats:
+    - {action: The camera glides toward the nearest boat., end: The bow of a wooden fishing boat, ropes coiled on deck, mist behind.}
+    - The camera rises over the rail onto the deck.
+```
+
+### Prompts per model
+
+Every job's prompt is rewritten for its model at plan time: Wan puts the style first and wants 60 to 200 words, HunyuanVideo ends on the style, LTX opens on the action. Image-to-video segments describe only motion and camera, except LTX-2.5, which wants the first frame described first. A shot can give `parts` (`subject`, `action`, `setting`, `lighting`, `camera`, `style`, `audio`) instead of one prompt, and they are ordered per model. Prompts are fitted to the text encoder's limit (512 tokens for Wan, about 1000 for HunyuanVideo, 1024 for LTX) at sentence boundaries, since every pipeline cuts silently, and Wan gets its official negative prompt. `shotwright prompts shots.yaml` prints each job's final prompt and token count.
+
+### Refining the hand-off frame
+
+With `continuity: {refine: {enabled: true}}`, each chained segment's starting frame is first re-rendered by an image model through img2img, so detail lost in the video VAE is restored instead of compounding. The refined frame is colour-matched back to the original. Describe the frame with `end_prompt` on the shot (or `end` on a beat), or let `--llm-frame-prompts` write it from the frame. `look: anime` switches the default refiner from Z-Image-Turbo to Animagine XL 4.0, which takes Danbooru tags (`end_tags`).
+
+```bash
+shotwright run shots.yaml --backend diffusers --refiner diffusers
+```
+
+| Refiner | Pipeline | Default strength, steps, guidance |
+| --- | --- | --- |
+| `z-image-turbo` | ZImageImg2ImgPipeline | 0.35, 12, 0 |
+| `animagine-xl-4.0` | StableDiffusionXLImg2ImgPipeline | 0.35, 28, 5 |
+| `flux.1-dev` | FluxImg2ImgPipeline | 0.4, 28, 3.5 |
+| `qwen-image` | QwenImageImg2ImgPipeline | 0.35, 40, 4 |
+
 The stitcher drops the duplicated frame at each chained seam, resizes and crops to the output size, converts frame rates, and corrects colour drift across chains. `--color seam` matches each clip to the one before it. `--color anchor` also pulls long chains back toward the look of their first shot.
 
 ## Snap a request to legal values

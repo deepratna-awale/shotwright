@@ -23,6 +23,7 @@ profiles:
       - {min_gb: 24, recipe: full}
       - {min_gb: 8, recipe: offload}
       - {min_gb: 4, recipe: tiny}
+    handoff_skip: 0
     license: test
     sources: [test]
 """
@@ -43,6 +44,8 @@ def tiny_spec(shots, **extra) -> ShotList:
         "shots": shots,
     }
     data.update(extra)
+    data.setdefault("continuity", {})
+    data["continuity"] = {"handoff_window": 1, **data["continuity"]}
     return ShotList.from_dict(data, base_dir=Path.cwd())
 
 

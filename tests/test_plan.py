@@ -106,11 +106,15 @@ def test_style_and_negative_merge():
             defaults={"model": "wan2.2-ti2v-5b", "negative": "blur", "params": {"steps": 30}},
         )
     )
-    assert plan.job("a").prompt == "A harbour. film grain"
-    assert plan.job("b").prompt == "Boats. film grain"
+    assert plan.job("a").prompt == "film grain. A harbour."
+    assert plan.job("b").prompt == "film grain. Boats."
     assert plan.job("a").negative == "blur"
     assert plan.job("b").negative == "fog"
-    assert plan.job("a").params == {"steps": 30}
+    assert plan.job("a").params == {
+        "guidance_scale": 5.0,
+        "num_inference_steps": 50,
+        "steps": 30,
+    }
 
 
 def test_output_postprocess_recorded():

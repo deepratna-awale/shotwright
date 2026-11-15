@@ -1,10 +1,27 @@
 from .compile import PlanError, compile_plan, derive_seed
-from .model import InitKind, Job, JobInit, Plan, PlannedLine
-from .spec import ContinuitySettings, Defaults, Line, OutputSpec, ShotList, ShotSpec, Transition
+from .model import FrameRefine, InitKind, Job, JobInit, Plan, PlannedLine
+from .spec import (
+    Beat,
+    ContinuitySettings,
+    Defaults,
+    Line,
+    Look,
+    OutputSpec,
+    PromptParts,
+    RefineSettings,
+    ShotList,
+    ShotSpec,
+    Transition,
+)
 
 __all__ = [
+    "Beat",
+    "Look",
+    "PromptParts",
+    "RefineSettings",
     "ContinuitySettings",
     "Defaults",
+    "FrameRefine",
     "InitKind",
     "Job",
     "JobInit",

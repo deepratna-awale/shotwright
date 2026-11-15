@@ -7,7 +7,7 @@ import click
 
 from . import __version__
 from .plan import PlanError, ShotList, compile_plan
-from .profiles import Conditioning, UnknownModelError, list_models
+from .profiles import Conditioning, UnknownModelError, get_profile, list_models
 from .review import ReviewError, contact_sheet
 from .run import ComfyUIBackend, DiffusersBackend, FakeBackend, HostedBackend, Runner, RunResult
 from .snap import snap as snap_request
@@ -37,8 +37,13 @@ def main() -> None:
     show_default=True,
     help="Frames shared between segments when a request is split.",
 )
+@click.option(
+    "--segment-frames",
+    type=int,
+    help="Longest segment to generate. Defaults to the model's trained length.",
+)
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON.")
-def snap(model, size, aspect, duration, frames, fps, overlap, as_json):
+def snap(model, size, aspect, duration, frames, fps, overlap, segment_frames, as_json):
     """Print legal generation settings for MODEL and every adjustment made."""
     try:
         result = snap_request(
@@ -49,6 +54,7 @@ def snap(model, size, aspect, duration, frames, fps, overlap, as_json):
             frames=frames,
             fps=fps,
             overlap=overlap,
+            segment_frames=segment_frames,
         )
     except (UnknownModelError, ValueError) as exc:
         raise click.ClickException(str(exc)) from exc
@@ -128,6 +134,31 @@ def plan(shot_list, as_json, output):
     if output:
         compiled.save(output)
     click.echo(compiled.to_json() if as_json else compiled.summary())
+
+
+@main.command()
+@click.argument("shot_list", type=click.Path(exists=True, dir_okay=False))
+def prompts(shot_list):
+    """Print every job's final prompt as the model will get it, with its token count."""
+    try:
+        compiled = compile_plan(ShotList.from_yaml(shot_list))
+    except PlanError as exc:
+        raise click.ClickException(f"the shot list has problems:\n{exc}") from exc
+    for job in compiled.jobs:
+        profile = get_profile(job.model)
+        click.echo(
+            f"{job.id}  {job.model}  {'i2v' if job.init else 't2v'}  "
+            f"{job.prompt_tokens}/{profile.prompt.max_tokens} tokens"
+        )
+        click.echo(f"  prompt    {job.prompt}")
+        if job.negative:
+            click.echo(f"  negative  {job.negative}")
+        if job.init is not None and job.init.refine is not None:
+            r = job.init.refine
+            click.echo(f"  refine    {r.model} ({r.prompt_source}): {r.prompt}")
+        for note in job.prompt_notes:
+            click.echo(f"  note      {note}")
+        click.echo()
 
 
 def _llm_options(f):
@@ -278,6 +309,16 @@ def _backend(
     raise click.ClickException(f"unknown backend {name!r}")
 
 
+def _refiner(name: str, device: str, dtype: str, offload: str):
+    if name == "none":
+        return None
+    from .refine import DiffusersRefiner, FakeRefiner
+
+    if name == "fake":
+        return FakeRefiner()
+    return DiffusersRefiner(device=device, dtype=dtype, offload=offload)
+
+
 def _report(result: RunResult) -> None:
     click.echo(f"run       {result.run_dir}")
     click.echo(
@@ -304,21 +345,47 @@ def _runner_options(f):
         llm_continuity,
         llm_model,
         llm_url,
+        refiner,
+        refiner_offload,
+        llm_frame_prompts,
         **kwargs,
     ):
-        hook = None
-        if llm_continuity:
-            from .llm import LLMClient, continuation_hook
+        hook = describer = None
+        if llm_continuity or llm_frame_prompts:
+            from .llm import LLMClient, continuation_hook, refine_describer
 
-            hook = continuation_hook(LLMClient(model=llm_model, base_url=llm_url))
+            client = LLMClient(model=llm_model, base_url=llm_url)
+            hook = continuation_hook(client) if llm_continuity else None
+            describer = refine_describer(client) if llm_frame_prompts else None
         return f(
             *args,
             backend=_backend(backend, device, dtype, comfy_url, workflows),
             prompt_hook=hook,
+            refiner=_refiner(refiner, device, dtype, refiner_offload),
+            frame_describer=describer,
             **kwargs,
         )
 
     wrapper = _llm_options(wrapper)
+    wrapper = click.option(
+        "--llm-frame-prompts",
+        is_flag=True,
+        help="Write prompts for refined hand-off frames with a vision LLM when a shot gives none.",
+    )(wrapper)
+    wrapper = click.option(
+        "--refiner-offload",
+        type=click.Choice(["none", "model", "sequential"]),
+        default="none",
+        show_default=True,
+        help="CPU offload for the refiner; use model or sequential on GPUs under 48 GB.",
+    )(wrapper)
+    wrapper = click.option(
+        "--refiner",
+        type=click.Choice(["none", "diffusers", "fake"]),
+        default="none",
+        show_default=True,
+        help="Image model runner for continuity.refine.",
+    )(wrapper)
     wrapper = click.option(
         "--llm-continuity",
         is_flag=True,
@@ -349,13 +416,20 @@ def _runner_options(f):
 @_runner_options
 @click.option("--runs-dir", default="runs", show_default=True, type=click.Path(file_okay=False))
 @click.option("--name", help="Run directory name. Defaults to project name plus a timestamp.")
-def run(shot_list, backend, prompt_hook, vram, runs_dir, name):
+def run(shot_list, backend, prompt_hook, refiner, frame_describer, vram, runs_dir, name):
     """Compile SHOT_LIST and render every job into a run directory."""
     try:
         compiled = compile_plan(ShotList.from_yaml(shot_list))
     except PlanError as exc:
         raise click.ClickException(f"the shot list has problems:\n{exc}") from exc
-    runner = Runner(backend, runs_root=runs_dir, vram_gb=vram, prompt_hook=prompt_hook)
+    runner = Runner(
+        backend,
+        runs_root=runs_dir,
+        vram_gb=vram,
+        prompt_hook=prompt_hook,
+        refiner=refiner,
+        frame_describer=frame_describer,
+    )
     runner.on(
         "job_done", lambda e: click.echo(f"  done    {e.job_id} ({e.detail['seconds']:.1f} s)")
     )
@@ -365,9 +439,15 @@ def run(shot_list, backend, prompt_hook, vram, runs_dir, name):
 @main.command()
 @click.argument("run_dir", type=click.Path(exists=True, file_okay=False))
 @_runner_options
-def resume(run_dir, backend, prompt_hook, vram):
+def resume(run_dir, backend, prompt_hook, refiner, frame_describer, vram):
     """Continue RUN_DIR, rendering only jobs that are missing or out of date."""
-    runner = Runner(backend, vram_gb=vram, prompt_hook=prompt_hook)
+    runner = Runner(
+        backend,
+        vram_gb=vram,
+        prompt_hook=prompt_hook,
+        refiner=refiner,
+        frame_describer=frame_describer,
+    )
     runner.on(
         "job_done", lambda e: click.echo(f"  done    {e.job_id} ({e.detail['seconds']:.1f} s)")
     )
@@ -379,9 +459,15 @@ def resume(run_dir, backend, prompt_hook, vram):
 @click.argument("job_id")
 @click.option("--seed", type=int, help="New seed. Defaults to the current seed plus one.")
 @_runner_options
-def rerun(run_dir, job_id, seed, backend, prompt_hook, vram):
+def rerun(run_dir, job_id, seed, backend, prompt_hook, refiner, frame_describer, vram):
     """Re-render JOB_ID in RUN_DIR with a new seed, plus every job chained from it."""
-    runner = Runner(backend, vram_gb=vram, prompt_hook=prompt_hook)
+    runner = Runner(
+        backend,
+        vram_gb=vram,
+        prompt_hook=prompt_hook,
+        refiner=refiner,
+        frame_describer=frame_describer,
+    )
     try:
         _report(runner.rerun(run_dir, job_id, seed=seed))
     except KeyError as exc:
