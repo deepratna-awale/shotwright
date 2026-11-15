@@ -24,6 +24,7 @@ from ..media import (
 from ..plan import FrameRefine, InitKind, Job, Plan
 from ..policy import check as check_policy
 from ..profiles import ModelProfile, Registry, VramPreset, default_registry
+from ..prompting import fit_tokens
 from ..refine import FrameRefiner, match_color, pick_start_frame
 from .backend import Backend, JobInputs, OutOfMemory, TransientError
 from .rundir import RunDir, job_cache_key
@@ -326,7 +327,13 @@ class Runner:
             stored = json.loads(path.read_text(encoding="utf-8"))
             if stored.get("source") == source:
                 return job.model_copy(update={"prompt": stored["prompt"]})
-        prompt = self.prompt_hook(job, inputs).strip()
+        rules = self.registry.get(job.model).prompt
+        prompt = fit_tokens(
+            self.prompt_hook(job, inputs).strip(),
+            rules.max_tokens,
+            tokenizer=rules.tokenizer,
+            ratio=rules.tokens_per_word,
+        ).text
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
             json.dumps({"source": source, "planned": job.prompt, "prompt": prompt}, indent=2)
