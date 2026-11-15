@@ -38,7 +38,9 @@ shots:
 
 ### Overlap context
 
-On VACE models, set `continuity: {overlap: 8}` and each chained job is conditioned on the last 8 frames of the clip before it instead of a single frame. This carries the motion across the seam. Models without VACE keep chaining from the last frame.
+On VACE and LTX-2 models, set `continuity: {overlap: 17}` and each chained job is conditioned on the last 17 frames of the clip before it instead of a single frame. Position, speed and camera motion then carry across the seam; with a single frame every clip restarts its motion. Overlap jobs get the full scene description rather than a motion-only prompt, since the model is not starting from a still. On LTX-2 use 8n+1 frames. Other models keep chaining from the last frame.
+
+LTX cuts to a new shot inside a clip when a beat moves to a new place, so keep each beat to what one continuous take can show.
 
 ### Segment length and the hand-off frame
 
