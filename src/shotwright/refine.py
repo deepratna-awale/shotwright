@@ -108,9 +108,7 @@ def refiner_model(model_id: str) -> RefinerModel:
 def sharpness(frame: np.ndarray) -> float:
     """Variance of the Laplacian of the luma channel; higher is sharper."""
     y = frame[..., :3].astype(np.float32) @ np.array([0.299, 0.587, 0.114], dtype=np.float32)
-    lap = (
-        -4 * y[1:-1, 1:-1] + y[:-2, 1:-1] + y[2:, 1:-1] + y[1:-1, :-2] + y[1:-1, 2:]
-    )
+    lap = -4 * y[1:-1, 1:-1] + y[:-2, 1:-1] + y[2:, 1:-1] + y[1:-1, :-2] + y[1:-1, 2:]
     return float(lap.var())
 
 
