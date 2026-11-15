@@ -16,12 +16,29 @@ class InitKind(str, Enum):
     OVERLAP = "overlap"
 
 
+class FrameRefine(BaseModel):
+    """How a chained job's starting frame is re-rendered with an image model first."""
+
+    model: str
+    prompt: str
+    tags: str | None = None
+    negative: str | None = None
+    strength: float | None = None
+    steps: int | None = None
+    guidance: float | None = None
+    seed: int = 0
+    pick_window: int = 1
+    color_match: float = 1.0
+    prompt_source: str = "plan"
+
+
 class JobInit(BaseModel):
     kind: InitKind
     path: str | None = None
     job: str | None = None
     strategy: Continuity | None = None
     frames: int = 1
+    refine: FrameRefine | None = None
 
 
 class Job(BaseModel):
