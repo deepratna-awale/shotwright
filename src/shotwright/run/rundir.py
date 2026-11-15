@@ -110,7 +110,8 @@ class RunDir:
 def job_cache_key(job: Job, input_hash: str | None) -> str:
     payload = job.model_dump(mode="json")
     payload.pop("id", None)
-    payload.pop("shot_id", None)
+    for key in ("shot_id", "end_prompt", "end_tags", "prompt_tokens", "prompt_notes"):
+        payload.pop(key, None)
     payload["_input"] = input_hash
     blob = json.dumps(payload, sort_keys=True).encode()
     return hashlib.sha256(blob).hexdigest()

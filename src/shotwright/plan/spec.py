@@ -78,7 +78,6 @@ class RefineSettings(BaseModel):
     strength: float | None = Field(default=None, gt=0, lt=1)
     steps: int | None = Field(default=None, gt=0)
     guidance: float | None = Field(default=None, ge=0)
-    window: int = Field(default=4, ge=1)
     color_match: float = Field(default=1.0, ge=0, le=1)
 
 
@@ -88,6 +87,8 @@ class ContinuitySettings(BaseModel):
     max_hops: int = Field(default=6, ge=1)
     overlap: int = Field(default=0, ge=0)
     segment_frames: int | None = Field(default=None, gt=0)
+    handoff_skip: int | None = Field(default=None, ge=0)
+    handoff_window: int = Field(default=4, ge=1)
     refine: RefineSettings = Field(default_factory=RefineSettings)
 
 

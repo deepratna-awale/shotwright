@@ -173,9 +173,16 @@ def _postprocess_size(
     return (resized if resized != generated else None), crop
 
 
-def _split(want: int, profile: ModelProfile, overlap: int) -> tuple[int, ...]:
+def segment_limit(profile: ModelProfile, segment_frames: int | None = None) -> int:
+    """Longest segment to generate: the trained length unless the caller asks otherwise."""
+    if segment_frames is None:
+        return profile.frames.segment
+    capped = min(max(segment_frames, profile.frames.min), profile.frames.max)
+    return legal_frames_at_most(capped, profile.temporal_factor)
+
+
+def _split(want: int, profile: ModelProfile, overlap: int, longest: int) -> tuple[int, ...]:
     k = profile.temporal_factor
-    longest = profile.frames.max
     if overlap >= longest:
         raise ValueError(f"overlap {overlap} must be shorter than the {longest}-frame clip limit")
     if want <= longest:
@@ -200,6 +207,7 @@ def snap(
     frames: int | None = None,
     fps: float | None = None,
     overlap: int = 0,
+    segment_frames: int | None = None,
 ) -> SnapResult:
     profile = model if isinstance(model, ModelProfile) else get_profile(model)
     adjustments: list[Adjustment] = []
@@ -229,7 +237,8 @@ def snap(
         want = math.ceil(duration * native - 1e-9)
     want = max(want, 1)
 
-    segments = _split(want, profile, overlap)
+    longest = segment_limit(profile, segment_frames)
+    segments = _split(want, profile, overlap, longest)
     total = sum(segments) - overlap * (len(segments) - 1)
     if len(segments) > 1:
         adjustments.append(
@@ -237,7 +246,12 @@ def snap(
                 "frames",
                 want,
                 f"{len(segments)} x {segments[0]}",
-                f"longer than the {profile.frames.max}-frame clip limit; split into segments"
+                (
+                    f"longer than the {longest}-frame clip limit"
+                    if longest == profile.frames.max
+                    else f"longer than the {longest}-frame length {profile.id} keeps quality at"
+                )
+                + "; split into segments"
                 + (
                     f" with {overlap} overlapping frame{'s' if overlap > 1 else ''}"
                     if overlap

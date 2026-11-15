@@ -29,6 +29,7 @@ class JobInputs:
     end_image: np.ndarray | None = None
     end_image_path: Path | None = None
     context_frames: np.ndarray | None = None
+    handoff: dict[str, Any] | None = None
 
 
 @dataclass

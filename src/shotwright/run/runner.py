@@ -21,9 +21,10 @@ from ..media import (
     wav_bytes,
     write_video,
 )
-from ..plan import InitKind, Job, Plan
+from ..plan import FrameRefine, InitKind, Job, Plan
 from ..policy import check as check_policy
 from ..profiles import ModelProfile, Registry, VramPreset, default_registry
+from ..refine import FrameRefiner, match_color, pick_start_frame
 from .backend import Backend, JobInputs, OutOfMemory, TransientError
 from .rundir import RunDir, job_cache_key
 
@@ -54,7 +55,10 @@ class Event:
 
 Listener = Callable[[Event], None]
 PromptHook = Callable[[Job, JobInputs], str]
+FrameDescriber = Callable[[np.ndarray, FrameRefine], str]
 PROMPT_FILE = "prompt.json"
+START_FILE = "start.png"
+START_META = "start.json"
 
 
 class Runner:
@@ -66,6 +70,8 @@ class Runner:
         vram_gb: float | None = None,
         transient_retries: int = 2,
         prompt_hook: PromptHook | None = None,
+        refiner: FrameRefiner | None = None,
+        frame_describer: FrameDescriber | None = None,
     ):
         self.backend = backend
         self.runs_root = Path(runs_root)
@@ -73,6 +79,8 @@ class Runner:
         self.vram_gb = vram_gb
         self.transient_retries = transient_retries
         self.prompt_hook = prompt_hook
+        self.refiner = refiner
+        self.frame_describer = frame_describer
         self._listeners: dict[str, list[Listener]] = defaultdict(list)
         self._preset: dict[str, VramPreset | None] = {}
 
@@ -141,16 +149,19 @@ class Runner:
                 inputs.init_image = inputs.context_frames[-1]
                 inputs.init_image_path = clip
                 hashes.append(f"{file_sha256(clip)}:{job.init.frames}")
-            else:
-                if job.init.kind == InitKind.IMAGE:
-                    path = Path(job.init.path)
-                else:
-                    path = run.last_frame_path(job.init.job)
+            elif job.init.kind == InitKind.IMAGE:
+                path = Path(job.init.path)
                 if not path.is_file():
                     raise RunError(f"{job.id}: init image missing at {path}")
                 inputs.init_image = load_image(path, job.width, job.height)
                 inputs.init_image_path = path
                 hashes.append(file_sha256(path))
+            else:
+                path, handoff = self._handoff(run, job)
+                inputs.init_image = load_image(path, job.width, job.height)
+                inputs.init_image_path = path
+                inputs.handoff = handoff
+                hashes.append(f"{file_sha256(path)}:{handoff['drop_last']}")
         if job.end_image is not None:
             path = Path(job.end_image)
             if not path.is_file():
@@ -161,6 +172,71 @@ class Runner:
         if not hashes:
             return inputs, None
         return inputs, hashes[0] if len(hashes) == 1 else "+".join(hashes)
+
+    def _handoff(self, run: RunDir, job: Job) -> tuple[Path, dict[str, Any]]:
+        """Pick the frame a chained job starts from and, if asked, re-render it first.
+
+        The frame comes from just before the parent's last latent group, the sharpest
+        of a small window, because a clip's final frames are its most degraded. The
+        number of parent frames after it is recorded so the stitcher can drop them.
+        """
+        init = job.init
+        parent = init.job
+        last = run.last_frame_path(parent)
+        if init.skip == 0 and init.window <= 1 and init.refine is None:
+            if not last.is_file():
+                raise RunError(f"{job.id}: init image missing at {last}")
+            return last, {"job": parent, "drop_last": 0, "refined": False}
+
+        clip = run.clip_path(parent)
+        if not clip.is_file():
+            raise RunError(f"{job.id}: clip of {parent} missing at {clip}")
+        frames, _ = read_video(clip)
+        skip = min(init.skip, len(frames) - 1)
+        offset = skip + pick_start_frame(frames[: len(frames) - skip], init.window)
+        frame = frames[len(frames) - 1 - offset]
+        handoff: dict[str, Any] = {"job": parent, "drop_last": offset, "refined": False}
+        if offset == 0 and init.refine is None and last.is_file():
+            return last, handoff
+
+        job_dir = run.job_dir(job.id)
+        job_dir.mkdir(parents=True, exist_ok=True)
+        start = job_dir / START_FILE
+        meta_path = job_dir / START_META
+        spec = init.refine
+        source = hashlib.sha256(frame.tobytes()).hexdigest()
+        settings = spec.model_dump(mode="json") if spec else None
+        if meta_path.is_file() and start.is_file():
+            stored = json.loads(meta_path.read_text(encoding="utf-8"))
+            if stored.get("source") == source and stored.get("refine") == settings:
+                handoff.update(stored.get("handoff", {}))
+                return start, handoff
+
+        if spec is None:
+            save_image(start, frame)
+        else:
+            if self.refiner is None:
+                raise RunError(
+                    f"{job.id}: the plan refines its starting frame but no refiner is set; "
+                    "pass --refiner diffusers or turn continuity.refine off"
+                )
+            if spec.prompt_source == "shot" and self.frame_describer is not None:
+                spec = spec.model_copy(update={"prompt": self.frame_describer(frame, spec)})
+                handoff["described"] = True
+            refined = self.refiner.refine(frame, spec)
+            if refined.shape != frame.shape:
+                refined = _fit(refined, frame.shape[1], frame.shape[0])
+            refined = match_color(refined, frame, spec.color_match)
+            save_image(start, refined)
+            save_image(job_dir / "start_source.png", frame)
+            handoff.update(refined=True, model=spec.model, prompt=spec.prompt)
+            run.log("refined", job.id, parent=parent, model=spec.model, drop_last=offset)
+        meta_path.write_text(
+            json.dumps({"source": source, "refine": settings, "handoff": handoff}, indent=2)
+            + "\n",
+            encoding="utf-8",
+        )
+        return start, handoff
 
     def _is_done(self, run: RunDir, job: Job, key: str) -> bool:
         meta = run.read_meta(job.id)
@@ -322,6 +398,7 @@ class Runner:
                 "recipe": preset.recipe if preset else None,
                 "seconds": round(seconds, 3),
                 "backend_meta": clip.meta,
+                "handoff": inputs.handoff,
             },
         )
         run.log("done", job.id, seconds=round(seconds, 3))

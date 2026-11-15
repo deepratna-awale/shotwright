@@ -23,6 +23,7 @@ profiles:
       - {min_gb: 24, recipe: full}
       - {min_gb: 8, recipe: offload}
       - {min_gb: 4, recipe: tiny}
+    handoff_skip: 0
     license: test
     sources: [test]
 """

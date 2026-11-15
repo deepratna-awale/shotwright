@@ -6,7 +6,7 @@ profiles:
     temporal_factor: 4
     spatial_multiple: 16
     native_fps: 16
-    frames: {min: 5, default: 81, max: 81}
+    frames: {min: 5, default: 81, max: 81, recommended: 81}
     resolution_buckets: [832x480, 480x832]
     pixel_budget: 399360
     conditioning: [t2v]
@@ -18,6 +18,17 @@ profiles:
     backends:
       diffusers: WanPipeline
       diffusers_repo: Wan-AI/Wan2.1-T2V-1.3B-Diffusers
+    prompt:
+      encoder: umT5-XXL
+      tokenizer: google/umt5-xxl
+      max_tokens: 512
+      tokens_per_word: 1.4
+      t2v_words: [60, 200]
+      i2v_words: [20, 100]
+      i2v: motion
+      negative: "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走"
+    call_params:
+      t2v: {guidance_scale: 6.0, num_inference_steps: 50}
     license: apache-2.0
     sources: [https://github.com/Wan-Video/Wan2.1]
     notes: 720p works but is less stable than 480p.
@@ -36,6 +47,9 @@ profiles:
     backends:
       diffusers: WanPipeline
       diffusers_repo: Wan-AI/Wan2.1-T2V-14B-Diffusers
+    call_params:
+      t2v: {guidance_scale: 5.0, num_inference_steps: 50}
+      i2v: {guidance_scale: 5.0, num_inference_steps: 40}
     notes: null
 
   - id: wan2.1-i2v-14b-480p
@@ -86,6 +100,9 @@ profiles:
     backends:
       diffusers: WanPipeline
       diffusers_repo: Wan-AI/Wan2.2-T2V-A14B-Diffusers
+    call_params:
+      t2v: {guidance_scale: 4.0, guidance_scale_2: 3.0, num_inference_steps: 40}
+      i2v: {guidance_scale: 3.5, guidance_scale_2: 3.5, num_inference_steps: 40}
     sources: [https://github.com/Wan-Video/Wan2.2]
 
   - id: wan2.2-i2v-a14b
@@ -104,7 +121,7 @@ profiles:
     temporal_factor: 4
     spatial_multiple: 32
     native_fps: 24
-    frames: {min: 5, default: 121, max: 121}
+    frames: {min: 5, default: 121, max: 121, recommended: 121}
     resolution_buckets: [1280x704, 704x1280]
     pixel_budget: 901120
     conditioning: [t2v, i2v]
@@ -127,6 +144,18 @@ profiles:
         - repo: Comfy-Org/Wan_2.1_ComfyUI_repackaged
           file: split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors
           folder: text_encoders
+    prompt:
+      encoder: umT5-XXL
+      tokenizer: google/umt5-xxl
+      max_tokens: 512
+      tokens_per_word: 1.4
+      t2v_words: [60, 200]
+      i2v_words: [20, 100]
+      i2v: motion
+      negative: "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走"
+    call_params:
+      t2v: {guidance_scale: 5.0, num_inference_steps: 50}
+      i2v: {guidance_scale: 5.0, num_inference_steps: 50}
     license: apache-2.0
     sources:
       - https://github.com/Wan-Video/Wan2.2
