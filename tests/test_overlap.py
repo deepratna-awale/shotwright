@@ -141,3 +141,19 @@ def test_other_backends_refuse_context(cls, vace_registry, tmp_path):
     context = np.zeros((4, job.height, job.width, 3), dtype=np.uint8)
     with pytest.raises(BackendError, match="overlap"):
         b.run(job, JobInputs(init_image=context[-1], context_frames=context))
+
+
+def test_overlap_segments_keep_the_full_description(vace_registry):
+    shots = [
+        {
+            "id": "walk",
+            "duration": 4,
+            "parts": {"subject": "A keeper in a yellow coat", "setting": "A cliff path"},
+            "beats": ["He walks to the door.", "He opens the door."],
+        }
+    ]
+    spec = tiny_spec(shots, defaults={"model": "tiny-vace", "seed": 3}, continuity={"overlap": 4})
+    jobs = compile_plan(spec, registry=vace_registry).jobs
+    assert jobs[1].init.kind == InitKind.OVERLAP
+    assert "yellow coat" in jobs[1].prompt and "cliff path" in jobs[1].prompt
+    assert "opens the door" in jobs[1].prompt
